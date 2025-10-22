@@ -6,7 +6,7 @@ class ConnectivityService {
   static final ConnectivityService _instance = ConnectivityService._internal();
   final Connectivity _connectivity = Connectivity();
   
-  StreamController<bool> _connectionStatusController = StreamController<bool>.broadcast();
+  final StreamController<bool> _connectionStatusController = StreamController<bool>.broadcast();
   bool _isOnline = true;
   
   factory ConnectivityService() {

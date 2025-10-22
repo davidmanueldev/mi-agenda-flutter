@@ -129,56 +129,91 @@ class DatabaseService implements DatabaseInterface {
     
     // Migración de versión 2 a 3: Agregar nuevos campos a tareas
     if (oldVersion < 3) {
-      // Agregar nuevos campos
-      await db.execute('ALTER TABLE tasks ADD COLUMN isMyDay INTEGER NOT NULL DEFAULT 0');
-      await db.execute('ALTER TABLE tasks ADD COLUMN reminderDateTime INTEGER');
-      await db.execute('ALTER TABLE tasks ADD COLUMN recurrence TEXT NOT NULL DEFAULT \'none\'');
-      await db.execute('ALTER TABLE tasks ADD COLUMN customRecurrence TEXT');
+      // Verificar si la tabla tasks existe
+      var tableExists = await db.rawQuery(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='tasks'"
+      );
       
-      // Renombrar columna steps a steps (SQLite no soporta RENAME COLUMN antes de 3.25.0)
-      // Crear nueva tabla temporal con el nuevo esquema
-      await db.execute('''
-        CREATE TABLE tasks_new (
-          id TEXT PRIMARY KEY,
-          userId TEXT NOT NULL,
-          title TEXT NOT NULL,
-          description TEXT NOT NULL,
-          dueDate INTEGER,
-          category TEXT NOT NULL,
-          priority TEXT NOT NULL,
-          status TEXT NOT NULL,
-          steps TEXT,
-          createdAt INTEGER NOT NULL,
-          updatedAt INTEGER NOT NULL,
-          isMyDay INTEGER NOT NULL DEFAULT 0,
-          reminderDateTime INTEGER,
-          recurrence TEXT NOT NULL DEFAULT 'none',
-          customRecurrence TEXT,
-          FOREIGN KEY (category) REFERENCES categories (id) ON DELETE CASCADE
-        )
-      ''');
+      if (tableExists.isEmpty) {
+        // Si no existe, crearla directamente con el esquema completo
+        await db.execute('''
+          CREATE TABLE tasks (
+            id TEXT PRIMARY KEY,
+            userId TEXT NOT NULL,
+            title TEXT NOT NULL,
+            description TEXT NOT NULL,
+            dueDate INTEGER,
+            category TEXT NOT NULL,
+            priority TEXT NOT NULL,
+            status TEXT NOT NULL,
+            steps TEXT,
+            createdAt INTEGER NOT NULL,
+            updatedAt INTEGER NOT NULL,
+            isMyDay INTEGER NOT NULL DEFAULT 0,
+            reminderDateTime INTEGER,
+            recurrence TEXT NOT NULL DEFAULT 'none',
+            customRecurrence TEXT,
+            FOREIGN KEY (category) REFERENCES categories (id) ON DELETE CASCADE
+          )
+        ''');
+      } else {
+        // Si existe, migrar datos
+        // Verificar qué columnas existen
+        var columns = await db.rawQuery('PRAGMA table_info(tasks)');
+        var columnNames = columns.map((col) => col['name'] as String).toSet();
+        
+        // Crear nueva tabla temporal con el nuevo esquema
+        await db.execute('''
+          CREATE TABLE tasks_new (
+            id TEXT PRIMARY KEY,
+            userId TEXT NOT NULL,
+            title TEXT NOT NULL,
+            description TEXT NOT NULL,
+            dueDate INTEGER,
+            category TEXT NOT NULL,
+            priority TEXT NOT NULL,
+            status TEXT NOT NULL,
+            steps TEXT,
+            createdAt INTEGER NOT NULL,
+            updatedAt INTEGER NOT NULL,
+            isMyDay INTEGER NOT NULL DEFAULT 0,
+            reminderDateTime INTEGER,
+            recurrence TEXT NOT NULL DEFAULT 'none',
+            customRecurrence TEXT,
+            FOREIGN KEY (category) REFERENCES categories (id) ON DELETE CASCADE
+          )
+        ''');
+        
+        // Construir query de copia basado en columnas existentes
+        String stepsColumn = columnNames.contains('steps') ? 'steps' : 'NULL';
+        String isMyDayColumn = columnNames.contains('isMyDay') ? 'isMyDay' : '0';
+        String reminderColumn = columnNames.contains('reminderDateTime') ? 'reminderDateTime' : 'NULL';
+        String recurrenceColumn = columnNames.contains('recurrence') ? 'recurrence' : "'none'";
+        String customRecurrenceColumn = columnNames.contains('customRecurrence') ? 'customRecurrence' : 'NULL';
+        
+        // Copiar datos de la tabla antigua
+        await db.execute('''
+          INSERT INTO tasks_new (id, userId, title, description, dueDate, category, 
+                                 priority, status, steps, createdAt, updatedAt,
+                                 isMyDay, reminderDateTime, recurrence, customRecurrence)
+          SELECT id, userId, title, description, dueDate, category, priority, status, 
+                 $stepsColumn, createdAt, updatedAt, $isMyDayColumn, $reminderColumn, 
+                 $recurrenceColumn, $customRecurrenceColumn
+          FROM tasks
+        ''');
+        
+        // Eliminar tabla antigua y renombrar
+        await db.execute('DROP TABLE tasks');
+        await db.execute('ALTER TABLE tasks_new RENAME TO tasks');
+      }
       
-      // Copiar datos de la tabla antigua (steps -> steps)
-      await db.execute('''
-        INSERT INTO tasks_new (id, userId, title, description, dueDate, category, 
-                               priority, status, steps, createdAt, updatedAt,
-                               isMyDay, reminderDateTime, recurrence, customRecurrence)
-        SELECT id, userId, title, description, dueDate, category, priority, status, 
-               steps, createdAt, updatedAt, 0, NULL, 'none', NULL
-        FROM tasks
-      ''');
-      
-      // Eliminar tabla antigua y renombrar
-      await db.execute('DROP TABLE tasks');
-      await db.execute('ALTER TABLE tasks_new RENAME TO tasks');
-      
-      // Recrear índices
-      await db.execute('CREATE INDEX idx_tasks_dueDate ON tasks(dueDate)');
-      await db.execute('CREATE INDEX idx_tasks_status ON tasks(status)');
-      await db.execute('CREATE INDEX idx_tasks_priority ON tasks(priority)');
-      await db.execute('CREATE INDEX idx_tasks_category ON tasks(category)');
-      await db.execute('CREATE INDEX idx_tasks_isMyDay ON tasks(isMyDay)');
-      await db.execute('CREATE INDEX idx_tasks_recurrence ON tasks(recurrence)');
+      // Crear/Recrear índices
+      await db.execute('CREATE INDEX IF NOT EXISTS idx_tasks_dueDate ON tasks(dueDate)');
+      await db.execute('CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status)');
+      await db.execute('CREATE INDEX IF NOT EXISTS idx_tasks_priority ON tasks(priority)');
+      await db.execute('CREATE INDEX IF NOT EXISTS idx_tasks_category ON tasks(category)');
+      await db.execute('CREATE INDEX IF NOT EXISTS idx_tasks_isMyDay ON tasks(isMyDay)');
+      await db.execute('CREATE INDEX IF NOT EXISTS idx_tasks_recurrence ON tasks(recurrence)');
     }
   }
 
@@ -692,6 +727,62 @@ class DatabaseService implements DatabaseInterface {
     if (db != null) {
       await db.close();
       _database = null;
+    }
+  }
+
+  /// Resetear la base de datos (CUIDADO: Borra todos los datos)
+  Future<void> resetDatabase() async {
+    try {
+      // Cerrar conexión actual
+      await closeDatabase();
+      
+      // Obtener ruta de la base de datos
+      final databasePath = await getDatabasesPath();
+      final path = join(databasePath, 'mi_agenda.db');
+      
+      // Eliminar archivo de base de datos
+      await deleteDatabase(path);
+      
+      // Reinicializar
+      _database = await _initDatabase();
+      
+      print('✅ Base de datos reseteada correctamente');
+    } catch (e) {
+      print('❌ Error al resetear base de datos: $e');
+      throw DatabaseException('Error al resetear base de datos: $e');
+    }
+  }
+
+  /// Verificar integridad de la base de datos
+  Future<bool> checkDatabaseIntegrity() async {
+    try {
+      final db = await database;
+      
+      // Verificar integridad de SQLite
+      final result = await db.rawQuery('PRAGMA integrity_check');
+      if (result.isEmpty || result.first.values.first != 'ok') {
+        print('❌ Base de datos corrupta');
+        return false;
+      }
+      
+      // Verificar existencia de tablas principales
+      final tables = await db.rawQuery(
+        "SELECT name FROM sqlite_master WHERE type='table'"
+      );
+      final tableNames = tables.map((t) => t['name']).toSet();
+      
+      if (!tableNames.contains('events') || 
+          !tableNames.contains('categories') || 
+          !tableNames.contains('tasks')) {
+        print('❌ Faltan tablas principales');
+        return false;
+      }
+      
+      print('✅ Base de datos íntegra');
+      return true;
+    } catch (e) {
+      print('❌ Error al verificar integridad: $e');
+      return false;
     }
   }
 }

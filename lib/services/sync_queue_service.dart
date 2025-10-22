@@ -1,7 +1,5 @@
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../models/event.dart';
-import '../models/category.dart' as model;
 
 /// Tipo de operación pendiente
 enum SyncOperation {

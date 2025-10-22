@@ -199,7 +199,7 @@ class _AddEditTaskScreenState extends State<AddEditTaskScreen> {
                         }
 
                         return DropdownButtonFormField<String>(
-                          value: _selectedCategory,
+                          initialValue: _selectedCategory,
                           decoration: const InputDecoration(
                             labelText: 'Categoría',
                             border: OutlineInputBorder(),

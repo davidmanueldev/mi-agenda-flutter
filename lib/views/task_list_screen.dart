@@ -259,11 +259,11 @@ class _TaskListScreenState extends State<TaskListScreen> {
                   ),
                   FilterChip(
                     label: const Text('Archivada'),
-                    selected: controller.statusFilter == TaskStatus.archived,
+                    selected: controller.statusFilter == TaskStatus.completed,
                     onSelected: (selected) {
                       setState(() {
                         controller.setStatusFilter(
-                          selected ? TaskStatus.archived : null,
+                          selected ? TaskStatus.completed : null,
                         );
                       });
                     },
@@ -414,7 +414,7 @@ class _TaskCard extends StatelessWidget {
                           ],
                         ),
                       ),
-                      if (task.status != TaskStatus.archived)
+                      if (task.status != TaskStatus.completed)
                         const PopupMenuItem(
                           value: 'archive',
                           child: Row(
@@ -436,7 +436,7 @@ class _TaskCard extends StatelessWidget {
                         ),
                       ),
                     ],
-                    onSelected: (value) => _handleAction(context, value as String, controller),
+                    onSelected: (value) => _handleAction(context, value, controller),
                   ),
                 ],
               ),

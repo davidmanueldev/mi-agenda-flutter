@@ -31,7 +31,7 @@ class EventController extends ChangeNotifier {
   /// Configurar listener para cambios de Firebase
   void _setupDatabaseListener() {
     if (_databaseService is DatabaseServiceHybridV2) {
-      final hybridService = _databaseService as DatabaseServiceHybridV2;
+      final hybridService = _databaseService;
       hybridService.onDataChanged = () {
         // Recargar eventos cuando Firebase notifica cambios
         print('🔄 Datos cambiados desde Firebase, recargando...');

@@ -4,7 +4,6 @@ import 'package:table_calendar/table_calendar.dart';
 import '../controllers/event_controller.dart';
 import '../models/event.dart';
 import '../services/connectivity_service.dart';
-import '../services/database_service_hybrid_v2.dart';
 import 'add_edit_event_screen.dart';
 import 'event_detail_screen.dart';
 import '../widgets/event_card.dart';
@@ -220,9 +219,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
   /// Banner de estado de conectividad y sincronización
   Widget _buildConnectivityBanner() {
-    final controller = context.read<EventController>();
-    final databaseService = controller;
-    
     return StreamBuilder<bool>(
       stream: ConnectivityService().connectionStream,
       initialData: ConnectivityService().isOnline,

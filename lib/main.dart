@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'controllers/event_controller.dart';
 import 'controllers/task_controller.dart';
+import 'services/database_service.dart';
 import 'services/database_service_hybrid_v2.dart';
 import 'services/firebase_service.dart';
 import 'services/notification_service.dart';
@@ -22,6 +23,16 @@ void main() async {
 /// Inicializar servicios antes de ejecutar la aplicación
 Future<void> _initializeServices() async {
   try {
+    // Verificar integridad de la base de datos local
+    final dbService = DatabaseService();
+    final isIntegrity = await dbService.checkDatabaseIntegrity();
+    
+    if (!isIntegrity) {
+      debugPrint('⚠️ Base de datos corrupta, reseteando...');
+      await dbService.resetDatabase();
+      debugPrint('✅ Base de datos reseteada correctamente');
+    }
+    
     // Inicializar Firebase primero
     await FirebaseService.initialize();
     

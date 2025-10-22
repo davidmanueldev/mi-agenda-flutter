@@ -44,6 +44,9 @@ class DatabaseServiceHybridV2 implements DatabaseInterface {
   Stream<SyncStatus> get syncStatusStream => _syncStatusController.stream;
   SyncStatus _currentSyncStatus = SyncStatus.idle;
   
+  // Getter para el estado actual de sincronización
+  SyncStatus get currentSyncStatus => _currentSyncStatus;
+  
   DatabaseServiceHybridV2() {
     _initialize();
   }

@@ -377,7 +377,7 @@ class TaskDetailScreen extends StatelessWidget {
           const SizedBox(height: 12),
         ],
 
-        if (task.status != TaskStatus.archived)
+        if (task.status != TaskStatus.completed)
           OutlinedButton.icon(
             onPressed: () async {
               await controller.archiveTask(task.id);
@@ -404,8 +404,6 @@ class TaskDetailScreen extends StatelessWidget {
         return Colors.orange;
       case TaskStatus.completed:
         return Colors.green;
-      case TaskStatus.archived:
-        return Colors.grey;
     }
   }
 
@@ -415,8 +413,6 @@ class TaskDetailScreen extends StatelessWidget {
         return Icons.pending_actions;
       case TaskStatus.completed:
         return Icons.check_circle;
-      case TaskStatus.archived:
-        return Icons.archive;
     }
   }
 
