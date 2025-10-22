@@ -2,6 +2,7 @@ import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import '../models/event.dart';
 import '../models/category.dart' as model;
+import '../models/task.dart';
 import 'database_interface.dart';
 
 /// Servicio de base de datos para la gestión de persistencia
@@ -29,7 +30,7 @@ class DatabaseService implements DatabaseInterface {
 
     return await openDatabase(
       path,
-      version: 1,
+      version: 2, // Incrementada para agregar tabla de tareas
       onCreate: _createTables,
       onUpgrade: _upgradeDatabase,
     );
@@ -65,20 +66,61 @@ class DatabaseService implements DatabaseInterface {
       )
     ''');
 
-    // Índices para optimizar consultas
+    // Tabla de tareas
+    await db.execute('''
+      CREATE TABLE tasks (
+        id TEXT PRIMARY KEY,
+        userId TEXT NOT NULL,
+        title TEXT NOT NULL,
+        description TEXT NOT NULL,
+        dueDate INTEGER,
+        category TEXT NOT NULL,
+        priority TEXT NOT NULL,
+        status TEXT NOT NULL,
+        subTasks TEXT,
+        createdAt INTEGER NOT NULL,
+        updatedAt INTEGER NOT NULL,
+        FOREIGN KEY (category) REFERENCES categories (id) ON DELETE CASCADE
+      )
+    ''');
+
+    // Índices para optimizar consultas de eventos
     await db.execute('CREATE INDEX idx_events_startTime ON events(startTime)');
     await db.execute('CREATE INDEX idx_events_category ON events(category)');
     await db.execute('CREATE INDEX idx_events_date ON events(startTime, endTime)');
+    
+    // Índices para optimizar consultas de tareas
+    await db.execute('CREATE INDEX idx_tasks_dueDate ON tasks(dueDate)');
+    await db.execute('CREATE INDEX idx_tasks_status ON tasks(status)');
+    await db.execute('CREATE INDEX idx_tasks_priority ON tasks(priority)');
+    await db.execute('CREATE INDEX idx_tasks_category ON tasks(category)');
   }
 
   /// Manejo de actualizaciones de esquema de base de datos
   Future<void> _upgradeDatabase(Database db, int oldVersion, int newVersion) async {
-    // Implementar migraciones futuras aquí
-    if (oldVersion < newVersion) {
-      // Ejemplo de migración para versión futura
-      // if (oldVersion < 2) {
-      //   await db.execute('ALTER TABLE events ADD COLUMN reminder INTEGER');
-      // }
+    // Migración de versión 1 a 2: Agregar tabla de tareas
+    if (oldVersion < 2) {
+      await db.execute('''
+        CREATE TABLE tasks (
+          id TEXT PRIMARY KEY,
+          userId TEXT NOT NULL,
+          title TEXT NOT NULL,
+          description TEXT NOT NULL,
+          dueDate INTEGER,
+          category TEXT NOT NULL,
+          priority TEXT NOT NULL,
+          status TEXT NOT NULL,
+          subTasks TEXT,
+          createdAt INTEGER NOT NULL,
+          updatedAt INTEGER NOT NULL,
+          FOREIGN KEY (category) REFERENCES categories (id) ON DELETE CASCADE
+        )
+      ''');
+      
+      await db.execute('CREATE INDEX idx_tasks_dueDate ON tasks(dueDate)');
+      await db.execute('CREATE INDEX idx_tasks_status ON tasks(status)');
+      await db.execute('CREATE INDEX idx_tasks_priority ON tasks(priority)');
+      await db.execute('CREATE INDEX idx_tasks_category ON tasks(category)');
     }
   }
 
@@ -364,6 +406,224 @@ class DatabaseService implements DatabaseInterface {
       };
     } catch (e) {
       throw DatabaseException('Error al obtener estadísticas: $e');
+    }
+  }
+
+  // ==================== OPERACIONES DE TAREAS ====================
+
+  /// Insertar una nueva tarea
+  Future<int> insertTask(Task task) async {
+    try {
+      final db = await database;
+      await db.insert(
+        'tasks',
+        task.toMap(),
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+      return 1;
+    } catch (e) {
+      throw DatabaseException('Error al insertar tarea: $e');
+    }
+  }
+
+  /// Actualizar una tarea existente
+  Future<int> updateTask(Task task) async {
+    try {
+      final db = await database;
+      return await db.update(
+        'tasks',
+        task.toMap(),
+        where: 'id = ?',
+        whereArgs: [task.id],
+      );
+    } catch (e) {
+      throw DatabaseException('Error al actualizar tarea: $e');
+    }
+  }
+
+  /// Eliminar una tarea por ID
+  Future<int> deleteTask(String id) async {
+    try {
+      final db = await database;
+      return await db.delete(
+        'tasks',
+        where: 'id = ?',
+        whereArgs: [id],
+      );
+    } catch (e) {
+      throw DatabaseException('Error al eliminar tarea: $e');
+    }
+  }
+
+  /// Obtener todas las tareas
+  Future<List<Task>> getAllTasks() async {
+    try {
+      final db = await database;
+      final List<Map<String, dynamic>> maps = await db.query(
+        'tasks',
+        orderBy: 'createdAt DESC',
+      );
+      return maps.map((map) => Task.fromMap(map)).toList();
+    } catch (e) {
+      throw DatabaseException('Error al obtener tareas: $e');
+    }
+  }
+
+  /// Obtener tarea por ID
+  Future<Task?> getTaskById(String id) async {
+    try {
+      final db = await database;
+      final List<Map<String, dynamic>> maps = await db.query(
+        'tasks',
+        where: 'id = ?',
+        whereArgs: [id],
+        limit: 1,
+      );
+
+      if (maps.isEmpty) return null;
+      return Task.fromMap(maps.first);
+    } catch (e) {
+      throw DatabaseException('Error al obtener tarea: $e');
+    }
+  }
+
+  /// Obtener tareas por estado
+  Future<List<Task>> getTasksByStatus(TaskStatus status) async {
+    try {
+      final db = await database;
+      final List<Map<String, dynamic>> maps = await db.query(
+        'tasks',
+        where: 'status = ?',
+        whereArgs: [status.name],
+        orderBy: 'dueDate ASC NULLS LAST, priority DESC, createdAt DESC',
+      );
+      return maps.map((map) => Task.fromMap(map)).toList();
+    } catch (e) {
+      throw DatabaseException('Error al obtener tareas por estado: $e');
+    }
+  }
+
+  /// Obtener tareas por prioridad
+  Future<List<Task>> getTasksByPriority(TaskPriority priority) async {
+    try {
+      final db = await database;
+      final List<Map<String, dynamic>> maps = await db.query(
+        'tasks',
+        where: 'priority = ?',
+        whereArgs: [priority.name],
+        orderBy: 'dueDate ASC NULLS LAST, createdAt DESC',
+      );
+      return maps.map((map) => Task.fromMap(map)).toList();
+    } catch (e) {
+      throw DatabaseException('Error al obtener tareas por prioridad: $e');
+    }
+  }
+
+  /// Obtener tareas por categoría
+  Future<List<Task>> getTasksByCategory(String category) async {
+    try {
+      final db = await database;
+      final List<Map<String, dynamic>> maps = await db.query(
+        'tasks',
+        where: 'category = ?',
+        whereArgs: [category],
+        orderBy: 'dueDate ASC NULLS LAST, priority DESC, createdAt DESC',
+      );
+      return maps.map((map) => Task.fromMap(map)).toList();
+    } catch (e) {
+      throw DatabaseException('Error al obtener tareas por categoría: $e');
+    }
+  }
+
+  /// Obtener tareas vencidas
+  Future<List<Task>> getOverdueTasks() async {
+    try {
+      final db = await database;
+      final now = DateTime.now().millisecondsSinceEpoch;
+      final List<Map<String, dynamic>> maps = await db.query(
+        'tasks',
+        where: 'dueDate < ? AND status != ?',
+        whereArgs: [now, TaskStatus.completed.name],
+        orderBy: 'dueDate ASC, priority DESC',
+      );
+      return maps.map((map) => Task.fromMap(map)).toList();
+    } catch (e) {
+      throw DatabaseException('Error al obtener tareas vencidas: $e');
+    }
+  }
+
+  /// Obtener tareas de hoy
+  Future<List<Task>> getTodayTasks() async {
+    try {
+      final db = await database;
+      final now = DateTime.now();
+      final startOfDay = DateTime(now.year, now.month, now.day);
+      final endOfDay = startOfDay.add(const Duration(days: 1));
+
+      final List<Map<String, dynamic>> maps = await db.query(
+        'tasks',
+        where: 'dueDate >= ? AND dueDate < ?',
+        whereArgs: [
+          startOfDay.millisecondsSinceEpoch,
+          endOfDay.millisecondsSinceEpoch,
+        ],
+        orderBy: 'priority DESC, dueDate ASC',
+      );
+      return maps.map((map) => Task.fromMap(map)).toList();
+    } catch (e) {
+      throw DatabaseException('Error al obtener tareas de hoy: $e');
+    }
+  }
+
+  /// Buscar tareas por texto
+  Future<List<Task>> searchTasks(String query) async {
+    try {
+      final db = await database;
+      final List<Map<String, dynamic>> maps = await db.query(
+        'tasks',
+        where: 'title LIKE ? OR description LIKE ?',
+        whereArgs: ['%$query%', '%$query%'],
+        orderBy: 'priority DESC, createdAt DESC',
+      );
+      return maps.map((map) => Task.fromMap(map)).toList();
+    } catch (e) {
+      throw DatabaseException('Error al buscar tareas: $e');
+    }
+  }
+
+  /// Marcar tarea como completada
+  Future<int> completeTask(String id) async {
+    try {
+      final db = await database;
+      return await db.update(
+        'tasks',
+        {
+          'status': TaskStatus.completed.name,
+          'updatedAt': DateTime.now().millisecondsSinceEpoch,
+        },
+        where: 'id = ?',
+        whereArgs: [id],
+      );
+    } catch (e) {
+      throw DatabaseException('Error al completar tarea: $e');
+    }
+  }
+
+  /// Archivar tarea
+  Future<int> archiveTask(String id) async {
+    try {
+      final db = await database;
+      return await db.update(
+        'tasks',
+        {
+          'status': TaskStatus.archived.name,
+          'updatedAt': DateTime.now().millisecondsSinceEpoch,
+        },
+        where: 'id = ?',
+        whereArgs: [id],
+      );
+    } catch (e) {
+      throw DatabaseException('Error al archivar tarea: $e');
     }
   }
 

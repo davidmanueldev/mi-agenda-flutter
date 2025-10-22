@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import '../models/event.dart';
 import '../models/category.dart' as model;
+import '../models/task.dart';
 import '../firebase_options.dart';
 
 /// Servicio Firebase para gestión de datos en la nube
@@ -19,6 +20,7 @@ class FirebaseService {
   // Referencias a las colecciones de Firestore
   final CollectionReference _eventsCollection = FirebaseFirestore.instance.collection('events');
   final CollectionReference _categoriesCollection = FirebaseFirestore.instance.collection('categories');
+  final CollectionReference _tasksCollection = FirebaseFirestore.instance.collection('tasks');
   
   // Instancia de Firebase Auth
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -367,6 +369,264 @@ class FirebaseService {
       return oldEvents.docs.length;
     } catch (e) {
       throw FirebaseServiceException('Error al limpiar eventos antiguos: $e');
+    }
+  }
+
+  // ==================== OPERACIONES DE TAREAS ====================
+
+  /// Crear una nueva tarea
+  Future<void> createTask(Task task) async {
+    await _ensureAuthenticated();
+    
+    try {
+      await _tasksCollection.doc(task.id).set(task.toJson());
+    } catch (e) {
+      throw FirebaseServiceException('Error al crear tarea: $e');
+    }
+  }
+
+  /// Actualizar una tarea existente
+  Future<void> updateTask(Task task) async {
+    await _ensureAuthenticated();
+    
+    try {
+      await _tasksCollection.doc(task.id).update(task.toJson());
+    } catch (e) {
+      throw FirebaseServiceException('Error al actualizar tarea: $e');
+    }
+  }
+
+  /// Eliminar una tarea
+  Future<void> deleteTask(String taskId) async {
+    await _ensureAuthenticated();
+    
+    try {
+      await _tasksCollection.doc(taskId).delete();
+    } catch (e) {
+      throw FirebaseServiceException('Error al eliminar tarea: $e');
+    }
+  }
+
+  /// Obtener una tarea por ID
+  Future<Task?> getTaskById(String taskId) async {
+    await _ensureAuthenticated();
+    
+    try {
+      final doc = await _tasksCollection.doc(taskId).get();
+      
+      if (!doc.exists) return null;
+      
+      return Task.fromJson(doc.data() as Map<String, dynamic>);
+    } catch (e) {
+      throw FirebaseServiceException('Error al obtener tarea: $e');
+    }
+  }
+
+  /// Obtener todas las tareas del usuario
+  Future<List<Task>> getAllTasks() async {
+    await _ensureAuthenticated();
+    
+    try {
+      final QuerySnapshot snapshot = await _tasksCollection
+          .where('userId', isEqualTo: currentUserId)
+          .orderBy('createdAt', descending: true)
+          .get();
+
+      return snapshot.docs
+          .map((doc) => Task.fromJson(doc.data() as Map<String, dynamic>))
+          .toList();
+    } catch (e) {
+      throw FirebaseServiceException('Error al obtener tareas: $e');
+    }
+  }
+
+  /// Stream de tareas en tiempo real
+  Stream<List<Task>> tasksStream() {
+    return _tasksCollection
+        .where('userId', isEqualTo: currentUserId)
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .map((snapshot) {
+      return snapshot.docs
+          .map((doc) => Task.fromJson(doc.data() as Map<String, dynamic>))
+          .toList();
+    });
+  }
+
+  /// Obtener tareas por estado
+  Future<List<Task>> getTasksByStatus(TaskStatus status) async {
+    await _ensureAuthenticated();
+    
+    try {
+      final QuerySnapshot snapshot = await _tasksCollection
+          .where('userId', isEqualTo: currentUserId)
+          .where('status', isEqualTo: status.name)
+          .orderBy('dueDate')
+          .get();
+
+      return snapshot.docs
+          .map((doc) => Task.fromJson(doc.data() as Map<String, dynamic>))
+          .toList();
+    } catch (e) {
+      throw FirebaseServiceException('Error al obtener tareas por estado: $e');
+    }
+  }
+
+  /// Obtener tareas por prioridad
+  Future<List<Task>> getTasksByPriority(TaskPriority priority) async {
+    await _ensureAuthenticated();
+    
+    try {
+      final QuerySnapshot snapshot = await _tasksCollection
+          .where('userId', isEqualTo: currentUserId)
+          .where('priority', isEqualTo: priority.name)
+          .orderBy('dueDate')
+          .get();
+
+      return snapshot.docs
+          .map((doc) => Task.fromJson(doc.data() as Map<String, dynamic>))
+          .toList();
+    } catch (e) {
+      throw FirebaseServiceException('Error al obtener tareas por prioridad: $e');
+    }
+  }
+
+  /// Obtener tareas por categoría
+  Future<List<Task>> getTasksByCategory(String category) async {
+    await _ensureAuthenticated();
+    
+    try {
+      final QuerySnapshot snapshot = await _tasksCollection
+          .where('userId', isEqualTo: currentUserId)
+          .where('category', isEqualTo: category)
+          .orderBy('dueDate')
+          .get();
+
+      return snapshot.docs
+          .map((doc) => Task.fromJson(doc.data() as Map<String, dynamic>))
+          .toList();
+    } catch (e) {
+      throw FirebaseServiceException('Error al obtener tareas por categoría: $e');
+    }
+  }
+
+  /// Obtener tareas vencidas
+  Future<List<Task>> getOverdueTasks() async {
+    await _ensureAuthenticated();
+    
+    try {
+      final now = DateTime.now().toIso8601String();
+      
+      final QuerySnapshot snapshot = await _tasksCollection
+          .where('userId', isEqualTo: currentUserId)
+          .where('dueDate', isLessThan: now)
+          .where('status', isNotEqualTo: TaskStatus.completed.name)
+          .orderBy('status')
+          .orderBy('dueDate')
+          .get();
+
+      return snapshot.docs
+          .map((doc) => Task.fromJson(doc.data() as Map<String, dynamic>))
+          .toList();
+    } catch (e) {
+      throw FirebaseServiceException('Error al obtener tareas vencidas: $e');
+    }
+  }
+
+  /// Obtener tareas de hoy
+  Future<List<Task>> getTodayTasks() async {
+    await _ensureAuthenticated();
+    
+    try {
+      final now = DateTime.now();
+      final startOfDay = DateTime(now.year, now.month, now.day);
+      final endOfDay = startOfDay.add(const Duration(days: 1));
+
+      final QuerySnapshot snapshot = await _tasksCollection
+          .where('userId', isEqualTo: currentUserId)
+          .where('dueDate', isGreaterThanOrEqualTo: startOfDay.toIso8601String())
+          .where('dueDate', isLessThan: endOfDay.toIso8601String())
+          .orderBy('dueDate')
+          .get();
+
+      return snapshot.docs
+          .map((doc) => Task.fromJson(doc.data() as Map<String, dynamic>))
+          .toList();
+    } catch (e) {
+      throw FirebaseServiceException('Error al obtener tareas de hoy: $e');
+    }
+  }
+
+  /// Marcar tarea como completada
+  Future<void> completeTask(String taskId) async {
+    await _ensureAuthenticated();
+    
+    try {
+      await _tasksCollection.doc(taskId).update({
+        'status': TaskStatus.completed.name,
+        'updatedAt': DateTime.now().toIso8601String(),
+      });
+    } catch (e) {
+      throw FirebaseServiceException('Error al completar tarea: $e');
+    }
+  }
+
+  /// Archivar tarea
+  Future<void> archiveTask(String taskId) async {
+    await _ensureAuthenticated();
+    
+    try {
+      await _tasksCollection.doc(taskId).update({
+        'status': TaskStatus.archived.name,
+        'updatedAt': DateTime.now().toIso8601String(),
+      });
+    } catch (e) {
+      throw FirebaseServiceException('Error al archivar tarea: $e');
+    }
+  }
+
+  /// Buscar tareas
+  Future<List<Task>> searchTasks(String query) async {
+    await _ensureAuthenticated();
+    
+    try {
+      // Firebase no soporta búsqueda de texto completa directamente
+      // Traemos todas las tareas del usuario y filtramos localmente
+      final allTasks = await getAllTasks();
+      
+      final lowerQuery = query.toLowerCase();
+      return allTasks.where((task) {
+        return task.title.toLowerCase().contains(lowerQuery) ||
+               task.description.toLowerCase().contains(lowerQuery);
+      }).toList();
+    } catch (e) {
+      throw FirebaseServiceException('Error al buscar tareas: $e');
+    }
+  }
+
+  /// Limpiar tareas completadas antiguas (más de 30 días)
+  Future<int> cleanupCompletedTasks() async {
+    await _ensureAuthenticated();
+    
+    try {
+      final thirtyDaysAgo = DateTime.now().subtract(const Duration(days: 30));
+      
+      final QuerySnapshot completedTasks = await _tasksCollection
+          .where('userId', isEqualTo: currentUserId)
+          .where('status', isEqualTo: TaskStatus.completed.name)
+          .where('updatedAt', isLessThan: thirtyDaysAgo.toIso8601String())
+          .get();
+
+      // Eliminar tareas completadas antiguas en lote
+      final batch = FirebaseFirestore.instance.batch();
+      for (final doc in completedTasks.docs) {
+        batch.delete(doc.reference);
+      }
+      await batch.commit();
+
+      return completedTasks.docs.length;
+    } catch (e) {
+      throw FirebaseServiceException('Error al limpiar tareas completadas: $e');
     }
   }
 }

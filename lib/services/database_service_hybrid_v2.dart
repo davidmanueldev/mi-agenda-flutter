@@ -1,6 +1,7 @@
 import 'dart:async';
 import '../models/event.dart';
 import '../models/category.dart' as model;
+import '../models/task.dart';
 import 'firebase_service.dart';
 import 'database_service.dart';
 import 'database_interface.dart';
@@ -29,6 +30,7 @@ class DatabaseServiceHybridV2 implements DatabaseInterface {
   StreamSubscription? _connectivitySubscription;
   StreamSubscription? _eventsSubscription;
   StreamSubscription? _categoriesSubscription;
+  StreamSubscription? _tasksSubscription;
   
   bool _isOnline = false;
   bool _isSyncing = false;
@@ -88,6 +90,16 @@ class DatabaseServiceHybridV2 implements DatabaseInterface {
       },
       onError: (error) {
         print('Error en stream de categorías: $error');
+      },
+    );
+    
+    // Listener para tareas
+    _tasksSubscription = _firebaseService.tasksStream().listen(
+      (tasks) {
+        _syncTasksToLocal(tasks);
+      },
+      onError: (error) {
+        print('Error en stream de tareas: $error');
       },
     );
   }
@@ -167,6 +179,67 @@ class DatabaseServiceHybridV2 implements DatabaseInterface {
     }
   }
   
+  /// Sincronizar tareas de Firebase a SQLite
+  Future<void> _syncTasksToLocal(List<Task> firebaseTasks) async {
+    try {
+      _updateSyncStatus(SyncStatus.syncing);
+      bool hasChanges = false;
+      
+      final localTasks = await _localService.getAllTasks();
+      final localTasksMap = {for (var t in localTasks) t.id: t};
+      
+      // Actualizar o insertar tareas de Firebase en SQLite
+      for (final firebaseTask in firebaseTasks) {
+        final localTask = localTasksMap[firebaseTask.id];
+        
+        if (localTask == null) {
+          // No existe localmente, insertar
+          await _localService.insertTask(firebaseTask);
+          print('✅ Nueva tarea desde Firebase: ${firebaseTask.title}');
+          hasChanges = true;
+        } else if (_hasTaskChanged(localTask, firebaseTask)) {
+          // Detectar si hay diferencias en el contenido
+          await _localService.updateTask(firebaseTask);
+          print('🔄 Tarea actualizada desde Firebase: ${firebaseTask.title}');
+          hasChanges = true;
+        }
+        
+        localTasksMap.remove(firebaseTask.id);
+      }
+      
+      // Las tareas que quedaron en el map local no están en Firebase
+      // Esto significa que fueron borradas en Firebase
+      for (final orphanTask in localTasksMap.values) {
+        await _localService.deleteTask(orphanTask.id);
+        print('🗑️ Eliminada tarea desde Firebase: ${orphanTask.title}');
+        hasChanges = true;
+      }
+      
+      // Notificar cambios al UI
+      if (hasChanges && onDataChanged != null) {
+        onDataChanged!();
+      }
+      
+      _updateSyncStatus(SyncStatus.synchronized);
+      
+    } catch (e) {
+      print('Error sincronizando tareas Firebase -> Local: $e');
+      _updateSyncStatus(SyncStatus.error);
+    }
+  }
+  
+  /// Verificar si una tarea cambió comparando sus campos
+  bool _hasTaskChanged(Task local, Task firebase) {
+    return local.title != firebase.title ||
+           local.description != firebase.description ||
+           local.dueDate != firebase.dueDate ||
+           local.category != firebase.category ||
+           local.priority != firebase.priority ||
+           local.status != firebase.status ||
+           local.subTasks.length != firebase.subTasks.length ||
+           firebase.updatedAt.isAfter(local.updatedAt);
+  }
+  
   /// Sincronizar operaciones pendientes cuando hay conexión
   Future<void> _syncPendingOperations() async {
     if (_isSyncing || !_isOnline) return;
@@ -202,6 +275,20 @@ class DatabaseServiceHybridV2 implements DatabaseInterface {
               
             case SyncOperation.deleteCategory:
               await _firebaseService.deleteCategory(item.data['id']);
+              break;
+              
+            case SyncOperation.createTask:
+              final task = Task.fromJson(item.data);
+              await _firebaseService.createTask(task);
+              break;
+              
+            case SyncOperation.updateTask:
+              final task = Task.fromJson(item.data);
+              await _firebaseService.updateTask(task);
+              break;
+              
+            case SyncOperation.deleteTask:
+              await _firebaseService.deleteTask(item.data['id']);
               break;
           }
           
@@ -381,6 +468,145 @@ class DatabaseServiceHybridV2 implements DatabaseInterface {
     return 1;
   }
   
+  // ==================== OPERACIONES DE TAREAS ====================
+
+  /// Insertar nueva tarea (offline-first)
+  Future<int> insertTask(Task task) async {
+    // SIEMPRE guardar en SQLite primero
+    await _localService.insertTask(task);
+    
+    // Si está online, intentar Firebase
+    if (_isOnline) {
+      try {
+        await _firebaseService.createTask(task);
+      } catch (e) {
+        await _syncQueue.addToQueue(SyncOperation.createTask, task.toJson());
+      }
+    } else {
+      await _syncQueue.addToQueue(SyncOperation.createTask, task.toJson());
+    }
+    
+    return 1;
+  }
+
+  /// Actualizar tarea existente (offline-first)
+  Future<int> updateTask(Task task) async {
+    await _localService.updateTask(task);
+    
+    if (_isOnline) {
+      try {
+        await _firebaseService.updateTask(task);
+      } catch (e) {
+        await _syncQueue.addToQueue(SyncOperation.updateTask, task.toJson());
+      }
+    } else {
+      await _syncQueue.addToQueue(SyncOperation.updateTask, task.toJson());
+    }
+    
+    return 1;
+  }
+
+  /// Eliminar tarea (offline-first)
+  Future<int> deleteTask(String taskId) async {
+    await _localService.deleteTask(taskId);
+    
+    if (_isOnline) {
+      try {
+        await _firebaseService.deleteTask(taskId);
+      } catch (e) {
+        await _syncQueue.addToQueue(
+          SyncOperation.deleteTask,
+          {'id': taskId},
+        );
+      }
+    } else {
+      await _syncQueue.addToQueue(
+        SyncOperation.deleteTask,
+        {'id': taskId},
+      );
+    }
+    
+    return 1;
+  }
+
+  /// Obtener todas las tareas
+  Future<List<Task>> getAllTasks() async {
+    return await _localService.getAllTasks();
+  }
+
+  /// Obtener tarea por ID
+  Future<Task?> getTaskById(String id) async {
+    return await _localService.getTaskById(id);
+  }
+
+  /// Obtener tareas por estado
+  Future<List<Task>> getTasksByStatus(TaskStatus status) async {
+    return await _localService.getTasksByStatus(status);
+  }
+
+  /// Obtener tareas por prioridad
+  Future<List<Task>> getTasksByPriority(TaskPriority priority) async {
+    return await _localService.getTasksByPriority(priority);
+  }
+
+  /// Obtener tareas por categoría
+  Future<List<Task>> getTasksByCategory(String category) async {
+    return await _localService.getTasksByCategory(category);
+  }
+
+  /// Obtener tareas vencidas
+  Future<List<Task>> getOverdueTasks() async {
+    return await _localService.getOverdueTasks();
+  }
+
+  /// Obtener tareas de hoy
+  Future<List<Task>> getTodayTasks() async {
+    return await _localService.getTodayTasks();
+  }
+
+  /// Buscar tareas
+  Future<List<Task>> searchTasks(String query) async {
+    return await _localService.searchTasks(query);
+  }
+
+  /// Marcar tarea como completada
+  Future<int> completeTask(String taskId) async {
+    await _localService.completeTask(taskId);
+    
+    if (_isOnline) {
+      try {
+        await _firebaseService.completeTask(taskId);
+      } catch (e) {
+        // La tarea ya está marcada localmente, se sincronizará después
+        final task = await _localService.getTaskById(taskId);
+        if (task != null) {
+          await _syncQueue.addToQueue(SyncOperation.updateTask, task.toJson());
+        }
+      }
+    }
+    
+    return 1;
+  }
+
+  /// Archivar tarea
+  Future<int> archiveTask(String taskId) async {
+    await _localService.archiveTask(taskId);
+    
+    if (_isOnline) {
+      try {
+        await _firebaseService.archiveTask(taskId);
+      } catch (e) {
+        // La tarea ya está archivada localmente, se sincronizará después
+        final task = await _localService.getTaskById(taskId);
+        if (task != null) {
+          await _syncQueue.addToQueue(SyncOperation.updateTask, task.toJson());
+        }
+      }
+    }
+    
+    return 1;
+  }
+
   // ==================== OTROS MÉTODOS ====================
   
   @override
@@ -408,6 +634,7 @@ class DatabaseServiceHybridV2 implements DatabaseInterface {
     await _connectivitySubscription?.cancel();
     await _eventsSubscription?.cancel();
     await _categoriesSubscription?.cancel();
+    await _tasksSubscription?.cancel();
     await _localService.closeDatabase();
   }
   

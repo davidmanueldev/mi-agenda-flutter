@@ -10,6 +10,9 @@ enum SyncOperation {
   deleteEvent,
   createCategory,
   deleteCategory,
+  createTask,
+  updateTask,
+  deleteTask,
 }
 
 /// Item en cola de sincronización

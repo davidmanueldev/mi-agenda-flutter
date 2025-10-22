@@ -1,0 +1,425 @@
+import 'package:flutter/material.dart';
+import '../models/task.dart';
+import '../models/category.dart' as model;
+import '../services/database_service_hybrid_v2.dart';
+import '../services/connectivity_service.dart';
+
+/// Controlador para gestión de tareas
+/// Implementa patrón Provider para gestión de estado
+class TaskController with ChangeNotifier {
+  final DatabaseServiceHybridV2 _database = DatabaseServiceHybridV2();
+  final ConnectivityService _connectivityService = ConnectivityService();
+  
+  List<Task> _tasks = [];
+  List<model.Category> _categories = [];
+  bool _isLoading = false;
+  bool _isOnline = false;
+  String? _errorMessage;
+  
+  // Filtros
+  TaskStatus? _statusFilter;
+  TaskPriority? _priorityFilter;
+  String? _categoryFilter;
+  String _searchQuery = '';
+  
+  // Getters
+  List<Task> get tasks => _getFilteredTasks();
+  List<model.Category> get categories => _categories;
+  bool get isLoading => _isLoading;
+  bool get isOnline => _isOnline;
+  String? get errorMessage => _errorMessage;
+  TaskStatus? get statusFilter => _statusFilter;
+  TaskPriority? get priorityFilter => _priorityFilter;
+  String? get categoryFilter => _categoryFilter;
+  String get searchQuery => _searchQuery;
+  
+  TaskController() {
+    _initialize();
+  }
+  
+  /// Inicializar controller
+  Future<void> _initialize() async {
+    _setLoading(true);
+    
+    try {
+      // Configurar callback para cambios de datos
+      _database.onDataChanged = () {
+        _loadTasks();
+      };
+      
+      // Cargar datos iniciales
+      await Future.wait([
+        _loadTasks(),
+        _loadCategories(),
+      ]);
+      
+      // Escuchar cambios de conectividad
+      _connectivityService.connectionStream.listen((isOnline) {
+        _isOnline = isOnline;
+        notifyListeners();
+      });
+      
+      // Verificar conectividad inicial
+      _isOnline = await _connectivityService.checkConnectivity();
+      
+    } catch (e) {
+      _setError('Error al inicializar: $e');
+    } finally {
+      _setLoading(false);
+    }
+  }
+  
+  /// Cargar todas las tareas
+  Future<void> _loadTasks() async {
+    try {
+      _tasks = await _database.getAllTasks();
+      notifyListeners();
+    } catch (e) {
+      _setError('Error al cargar tareas: $e');
+    }
+  }
+  
+  /// Cargar categorías
+  Future<void> _loadCategories() async {
+    try {
+      _categories = await _database.getAllCategories();
+      notifyListeners();
+    } catch (e) {
+      _setError('Error al cargar categorías: $e');
+    }
+  }
+  
+  /// Obtener tareas filtradas
+  List<Task> _getFilteredTasks() {
+    var filtered = List<Task>.from(_tasks);
+    
+    // Filtrar por estado
+    if (_statusFilter != null) {
+      filtered = filtered.where((task) => task.status == _statusFilter).toList();
+    }
+    
+    // Filtrar por prioridad
+    if (_priorityFilter != null) {
+      filtered = filtered.where((task) => task.priority == _priorityFilter).toList();
+    }
+    
+    // Filtrar por categoría
+    if (_categoryFilter != null) {
+      filtered = filtered.where((task) => task.category == _categoryFilter).toList();
+    }
+    
+    // Filtrar por búsqueda
+    if (_searchQuery.isNotEmpty) {
+      final query = _searchQuery.toLowerCase();
+      filtered = filtered.where((task) {
+        return task.title.toLowerCase().contains(query) ||
+               task.description.toLowerCase().contains(query);
+      }).toList();
+    }
+    
+    // Ordenar: vencidas primero, luego por prioridad y fecha
+    filtered.sort((a, b) {
+      // Tareas vencidas primero
+      if (a.isOverdue && !b.isOverdue) return -1;
+      if (!a.isOverdue && b.isOverdue) return 1;
+      
+      // Luego por prioridad (urgente primero)
+      final priorityCompare = b.priority.value.compareTo(a.priority.value);
+      if (priorityCompare != 0) return priorityCompare;
+      
+      // Luego por fecha de vencimiento
+      if (a.dueDate != null && b.dueDate != null) {
+        return a.dueDate!.compareTo(b.dueDate!);
+      }
+      if (a.dueDate != null) return -1;
+      if (b.dueDate != null) return 1;
+      
+      // Por último por fecha de creación (más recientes primero)
+      return b.createdAt.compareTo(a.createdAt);
+    });
+    
+    return filtered;
+  }
+  
+  /// Crear nueva tarea
+  Future<bool> createTask(Task task) async {
+    _setLoading(true);
+    _clearError();
+    
+    try {
+      await _database.insertTask(task);
+      await _loadTasks();
+      return true;
+    } catch (e) {
+      _setError('Error al crear tarea: $e');
+      return false;
+    } finally {
+      _setLoading(false);
+    }
+  }
+  
+  /// Actualizar tarea existente
+  Future<bool> updateTask(Task task) async {
+    _setLoading(true);
+    _clearError();
+    
+    try {
+      await _database.updateTask(task);
+      await _loadTasks();
+      return true;
+    } catch (e) {
+      _setError('Error al actualizar tarea: $e');
+      return false;
+    } finally {
+      _setLoading(false);
+    }
+  }
+  
+  /// Eliminar tarea
+  Future<bool> deleteTask(String taskId) async {
+    _setLoading(true);
+    _clearError();
+    
+    try {
+      await _database.deleteTask(taskId);
+      await _loadTasks();
+      return true;
+    } catch (e) {
+      _setError('Error al eliminar tarea: $e');
+      return false;
+    } finally {
+      _setLoading(false);
+    }
+  }
+  
+  /// Obtener tarea por ID
+  Future<Task?> getTaskById(String id) async {
+    try {
+      return await _database.getTaskById(id);
+    } catch (e) {
+      _setError('Error al obtener tarea: $e');
+      return null;
+    }
+  }
+  
+  /// Marcar tarea como completada
+  Future<bool> completeTask(String taskId) async {
+    _clearError();
+    
+    try {
+      await _database.completeTask(taskId);
+      await _loadTasks();
+      return true;
+    } catch (e) {
+      _setError('Error al completar tarea: $e');
+      return false;
+    }
+  }
+  
+  /// Archivar tarea
+  Future<bool> archiveTask(String taskId) async {
+    _clearError();
+    
+    try {
+      await _database.archiveTask(taskId);
+      await _loadTasks();
+      return true;
+    } catch (e) {
+      _setError('Error al archivar tarea: $e');
+      return false;
+    }
+  }
+  
+  /// Toggle estado de sub-tarea
+  Future<bool> toggleSubTask(Task task, int subTaskIndex) async {
+    try {
+      final subTasks = List<SubTask>.from(task.subTasks);
+      subTasks[subTaskIndex] = subTasks[subTaskIndex].copyWith(
+        isCompleted: !subTasks[subTaskIndex].isCompleted,
+      );
+      
+      final updatedTask = task.copyWith(subTasks: subTasks);
+      return await updateTask(updatedTask);
+    } catch (e) {
+      _setError('Error al actualizar sub-tarea: $e');
+      return false;
+    }
+  }
+  
+  /// Agregar sub-tarea
+  Future<bool> addSubTask(Task task, String title) async {
+    try {
+      final subTasks = List<SubTask>.from(task.subTasks);
+      subTasks.add(SubTask(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        title: title,
+      ));
+      
+      final updatedTask = task.copyWith(subTasks: subTasks);
+      return await updateTask(updatedTask);
+    } catch (e) {
+      _setError('Error al agregar sub-tarea: $e');
+      return false;
+    }
+  }
+  
+  /// Eliminar sub-tarea
+  Future<bool> removeSubTask(Task task, int subTaskIndex) async {
+    try {
+      final subTasks = List<SubTask>.from(task.subTasks);
+      subTasks.removeAt(subTaskIndex);
+      
+      final updatedTask = task.copyWith(subTasks: subTasks);
+      return await updateTask(updatedTask);
+    } catch (e) {
+      _setError('Error al eliminar sub-tarea: $e');
+      return false;
+    }
+  }
+  
+  // ==================== FILTROS ====================
+  
+  /// Establecer filtro por estado
+  void setStatusFilter(TaskStatus? status) {
+    _statusFilter = status;
+    notifyListeners();
+  }
+  
+  /// Establecer filtro por prioridad
+  void setPriorityFilter(TaskPriority? priority) {
+    _priorityFilter = priority;
+    notifyListeners();
+  }
+  
+  /// Establecer filtro por categoría
+  void setCategoryFilter(String? category) {
+    _categoryFilter = category;
+    notifyListeners();
+  }
+  
+  /// Establecer búsqueda
+  void setSearchQuery(String query) {
+    _searchQuery = query;
+    notifyListeners();
+  }
+  
+  /// Limpiar todos los filtros
+  void clearFilters() {
+    _statusFilter = null;
+    _priorityFilter = null;
+    _categoryFilter = null;
+    _searchQuery = '';
+    notifyListeners();
+  }
+  
+  // ==================== CONSULTAS ESPECIALES ====================
+  
+  /// Obtener tareas vencidas
+  List<Task> get overdueTasks {
+    return tasks.where((task) => task.isOverdue).toList();
+  }
+  
+  /// Obtener tareas de hoy
+  Future<List<Task>> getTodayTasks() async {
+    try {
+      return await _database.getTodayTasks();
+    } catch (e) {
+      _setError('Error al obtener tareas de hoy: $e');
+      return [];
+    }
+  }
+  
+  /// Obtener tareas pendientes
+  List<Task> get pendingTasks {
+    return tasks.where((task) => task.status == TaskStatus.pending).toList();
+  }
+  
+  /// Obtener tareas completadas
+  List<Task> get completedTasks {
+    return tasks.where((task) => task.status == TaskStatus.completed).toList();
+  }
+  
+  /// Obtener tareas archivadas
+  List<Task> get archivedTasks {
+    return tasks.where((task) => task.status == TaskStatus.archived).toList();
+  }
+  
+  /// Obtener tareas por prioridad urgente
+  List<Task> get urgentTasks {
+    return tasks.where((task) => 
+      task.priority == TaskPriority.urgent && 
+      task.status == TaskStatus.pending
+    ).toList();
+  }
+  
+  // ==================== ESTADÍSTICAS ====================
+  
+  /// Total de tareas
+  int get totalTasks => _tasks.length;
+  
+  /// Total de tareas pendientes
+  int get totalPendingTasks => pendingTasks.length;
+  
+  /// Total de tareas completadas
+  int get totalCompletedTasks => completedTasks.length;
+  
+  /// Total de tareas vencidas
+  int get totalOverdueTasks => overdueTasks.length;
+  
+  /// Porcentaje de completadas
+  double get completionRate {
+    if (_tasks.isEmpty) return 0.0;
+    return (totalCompletedTasks / totalTasks) * 100;
+  }
+  
+  /// Obtener tareas por categoría
+  Map<String, int> get tasksByCategory {
+    final map = <String, int>{};
+    for (final task in _tasks) {
+      map[task.category] = (map[task.category] ?? 0) + 1;
+    }
+    return map;
+  }
+  
+  /// Obtener tareas por prioridad
+  Map<TaskPriority, int> get tasksByPriority {
+    final map = <TaskPriority, int>{};
+    for (final task in _tasks) {
+      map[task.priority] = (map[task.priority] ?? 0) + 1;
+    }
+    return map;
+  }
+  
+  // ==================== UTILIDADES ====================
+  
+  /// Recargar todas las tareas
+  Future<void> refresh() async {
+    _setLoading(true);
+    await _loadTasks();
+    _setLoading(false);
+  }
+  
+  /// Establecer estado de carga
+  void _setLoading(bool loading) {
+    _isLoading = loading;
+    notifyListeners();
+  }
+  
+  /// Establecer mensaje de error
+  void _setError(String message) {
+    _errorMessage = message;
+    notifyListeners();
+    print('❌ TaskController Error: $message');
+  }
+  
+  /// Limpiar error
+  void _clearError() {
+    _errorMessage = null;
+  }
+  
+  @override
+  void dispose() {
+    _database.closeDatabase();
+    super.dispose();
+  }
+}
