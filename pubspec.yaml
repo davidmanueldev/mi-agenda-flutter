@@ -1,0 +1,53 @@
+name: mi_agenda
+description: "A new Flutter project."
+publish_to: 'none'
+version: 0.1.0
+
+environment:
+  sdk: ^3.9.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+  
+  # Gestión de estado
+  provider: ^6.1.2
+  
+  # Firebase (Cloud Database)
+  firebase_core: ^3.6.0
+  cloud_firestore: ^5.4.3
+  firebase_auth: ^5.3.1
+  
+  # Base de datos local (mantener como backup)
+  sqflite: ^2.3.3
+  path: ^1.9.0
+  shared_preferences: ^2.3.3
+  
+  # Notificaciones locales
+  flutter_local_notifications: ^17.2.2
+  
+  # Selección de fechas y horas
+  table_calendar: ^3.0.9
+  
+  # Iconos adicionales
+  cupertino_icons: ^1.0.8
+  
+  # Validación de formularios
+  form_field_validator: ^1.1.0
+  
+  # Manejo de permisos
+  permission_handler: ^11.3.1
+  
+  # Detectar conectividad (online/offline)
+  connectivity_plus: ^6.0.5
+  
+  # Zona horaria para notificaciones
+  timezone: ^0.9.4
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true

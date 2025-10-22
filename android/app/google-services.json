@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "777266326941",
+    "project_id": "mi-agenda-flutter-d4d7d",
+    "storage_bucket": "mi-agenda-flutter-d4d7d.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:777266326941:android:03b4f193ebd8c8e703d374",
+        "android_client_info": {
+          "package_name": "com.example.mi_agenda"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA8jYF-Fr3mQ1f2L7SCgAm-4IaD6Gytcso"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
