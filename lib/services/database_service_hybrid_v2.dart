@@ -236,7 +236,7 @@ class DatabaseServiceHybridV2 implements DatabaseInterface {
            local.category != firebase.category ||
            local.priority != firebase.priority ||
            local.status != firebase.status ||
-           local.subTasks.length != firebase.subTasks.length ||
+           local.steps.length != firebase.steps.length ||
            firebase.updatedAt.isAfter(local.updatedAt);
   }
   

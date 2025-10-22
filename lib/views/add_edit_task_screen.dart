@@ -24,7 +24,7 @@ class _AddEditTaskScreenState extends State<AddEditTaskScreen> {
   DateTime? _selectedDueDate;
   TaskPriority _selectedPriority = TaskPriority.medium;
   String _selectedCategory = 'Personal';
-  List<SubTask> _subTasks = [];
+  List<TaskStep> _steps = [];
   bool _isLoading = true;
 
   @override
@@ -46,7 +46,7 @@ class _AddEditTaskScreenState extends State<AddEditTaskScreen> {
           _selectedDueDate = task.dueDate;
           _selectedPriority = task.priority;
           _selectedCategory = task.category;
-          _subTasks = List.from(task.subTasks);
+          _steps = List.from(task.steps);
           _isLoading = false;
         });
       } else {
@@ -236,11 +236,11 @@ class _AddEditTaskScreenState extends State<AddEditTaskScreen> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
-                          'Sub-tareas (${_subTasks.length})',
+                          'Sub-tareas (${_steps.length})',
                           style: Theme.of(context).textTheme.titleMedium,
                         ),
                         TextButton.icon(
-                          onPressed: _addSubTask,
+                          onPressed: _addTaskStep,
                           icon: const Icon(Icons.add),
                           label: const Text('Agregar'),
                         ),
@@ -249,7 +249,7 @@ class _AddEditTaskScreenState extends State<AddEditTaskScreen> {
                     const SizedBox(height: 8),
 
                     // Lista de sub-tareas
-                    if (_subTasks.isEmpty)
+                    if (_steps.isEmpty)
                       Card(
                         child: Padding(
                           padding: const EdgeInsets.all(16),
@@ -264,8 +264,8 @@ class _AddEditTaskScreenState extends State<AddEditTaskScreen> {
                         ),
                       )
                     else
-                      ...List.generate(_subTasks.length, (index) {
-                        final subTask = _subTasks[index];
+                      ...List.generate(_steps.length, (index) {
+                        final subTask = _steps[index];
                         return Card(
                           margin: const EdgeInsets.only(bottom: 8),
                           child: ListTile(
@@ -273,7 +273,7 @@ class _AddEditTaskScreenState extends State<AddEditTaskScreen> {
                               value: subTask.isCompleted,
                               onChanged: (value) {
                                 setState(() {
-                                  _subTasks[index] = subTask.copyWith(
+                                  _steps[index] = subTask.copyWith(
                                     isCompleted: value ?? false,
                                   );
                                 });
@@ -290,7 +290,7 @@ class _AddEditTaskScreenState extends State<AddEditTaskScreen> {
                             trailing: IconButton(
                               icon: const Icon(Icons.delete, color: Colors.red),
                               onPressed: () {
-                                setState(() => _subTasks.removeAt(index));
+                                setState(() => _steps.removeAt(index));
                               },
                             ),
                           ),
@@ -353,7 +353,7 @@ class _AddEditTaskScreenState extends State<AddEditTaskScreen> {
     }
   }
 
-  Future<void> _addSubTask() async {
+  Future<void> _addTaskStep() async {
     final result = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
@@ -386,7 +386,7 @@ class _AddEditTaskScreenState extends State<AddEditTaskScreen> {
 
     if (result != null && result.isNotEmpty) {
       setState(() {
-        _subTasks.add(SubTask(
+        _steps.add(TaskStep(
           id: DateTime.now().millisecondsSinceEpoch.toString(),
           title: result,
         ));
@@ -412,7 +412,7 @@ class _AddEditTaskScreenState extends State<AddEditTaskScreen> {
       category: _selectedCategory,
       priority: _selectedPriority,
       status: _existingTask?.status ?? TaskStatus.pending,
-      subTasks: _subTasks,
+      steps: _steps,
       createdAt: _existingTask?.createdAt ?? DateTime.now(),
     );
 

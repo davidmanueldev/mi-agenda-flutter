@@ -577,7 +577,7 @@ class FirebaseService {
     
     try {
       await _tasksCollection.doc(taskId).update({
-        'status': TaskStatus.archived.name,
+        'status': TaskStatus.completed.name,
         'updatedAt': DateTime.now().toIso8601String(),
       });
     } catch (e) {

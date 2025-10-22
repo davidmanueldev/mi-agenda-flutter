@@ -490,11 +490,11 @@ class _TaskCard extends StatelessWidget {
                   ),
                   
                   // Progreso de sub-tareas
-                  if (task.subTasks.isNotEmpty)
+                  if (task.steps.isNotEmpty)
                     Chip(
                       avatar: const Icon(Icons.checklist, size: 16),
                       label: Text(
-                        '${task.subTasks.where((s) => s.isCompleted).length}/${task.subTasks.length}',
+                        '${task.steps.where((s) => s.isCompleted).length}/${task.steps.length}',
                         style: const TextStyle(fontSize: 12),
                       ),
                       visualDensity: VisualDensity.compact,
@@ -503,7 +503,7 @@ class _TaskCard extends StatelessWidget {
               ),
               
               // Barra de progreso de sub-tareas
-              if (task.subTasks.isNotEmpty) ...[
+              if (task.steps.isNotEmpty) ...[
                 const SizedBox(height: 8),
                 LinearProgressIndicator(
                   value: task.progress,

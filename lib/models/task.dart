@@ -1,17 +1,116 @@
-/// Modelo de datos para Tareas
+import 'dart:convert';
+
+/// Tipo de recurrencia para tareas
+enum TaskRecurrence {
+  none('Sin repetir'),
+  daily('Diariamente'),
+  weekdays('Días laborables'),
+  weekly('Semanalmente'),
+  monthly('Mensualmente'),
+  yearly('Anualmente'),
+  custom('Personalizado');
+
+  final String displayName;
+  const TaskRecurrence(this.displayName);
+}
+
+/// Estado de la tarea
+enum TaskStatus {
+  pending('Pendiente'),
+  completed('Completada');
+
+  final String displayName;
+  const TaskStatus(this.displayName);
+}
+
+/// Prioridad de la tarea
+enum TaskPriority {
+  low('Baja', 1),
+  medium('Media', 2),
+  high('Alta', 3),
+  urgent('Urgente', 4);
+
+  final String displayName;
+  final int value;
+  const TaskPriority(this.displayName, this.value);
+}
+
+/// Modelo de Paso (antes sub-tarea)
+class TaskStep {
+  final String id;
+  final String title;
+  final bool isCompleted;
+
+  TaskStep({
+    required this.id,
+    required this.title,
+    this.isCompleted = false,
+  });
+
+  /// Copiar con modificaciones
+  TaskStep copyWith({
+    String? id,
+    String? title,
+    bool? isCompleted,
+  }) {
+    return TaskStep(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      isCompleted: isCompleted ?? this.isCompleted,
+    );
+  }
+
+  /// Convertir a JSON
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'title': title,
+    'isCompleted': isCompleted,
+  };
+
+  /// Crear desde JSON
+  factory TaskStep.fromJson(Map<String, dynamic> json) {
+    return TaskStep(
+      id: json['id'] as String,
+      title: json['title'] as String,
+      isCompleted: json['isCompleted'] as bool? ?? false,
+    );
+  }
+
+  /// Convertir a String para SQLite
+  @override
+  String toString() => '$id:::$title:::${isCompleted ? '1' : '0'}';
+
+  /// Crear desde String (para SQLite)
+  factory TaskStep.fromString(String str) {
+    final parts = str.split(':::');
+    return TaskStep(
+      id: parts[0],
+      title: parts[1],
+      isCompleted: parts.length > 2 && parts[2] == '1',
+    );
+  }
+}
+
+/// Modelo de datos para Tareas mejorado
 /// Implementa validación y serialización para persistencia
 class Task {
   final String id;
   final String userId;
   final String title;
   final String description;
-  final DateTime? dueDate; // Fecha de vencimiento (opcional)
+  final DateTime? dueDate; // Fecha de vencimiento
   final String category;
   final TaskPriority priority;
   final TaskStatus status;
-  final List<SubTask> subTasks;
+  final List<TaskStep> steps; // Antes "subTasks", ahora "steps"
   final DateTime createdAt;
   final DateTime updatedAt;
+  
+  // NUEVOS CAMPOS
+  final bool isMyDay; // "Agregar a Mi Día"
+  final DateTime? reminderDateTime; // "Recordarme"
+  final TaskRecurrence recurrence; // Recurrencia
+  final Map<String, dynamic>? customRecurrence; // Para recurrencia personalizada
 
   Task({
     required this.id,
@@ -22,14 +121,105 @@ class Task {
     required this.category,
     this.priority = TaskPriority.medium,
     this.status = TaskStatus.pending,
-    List<SubTask>? subTasks,
+    List<TaskStep>? steps,
     DateTime? createdAt,
     DateTime? updatedAt,
-  })  : subTasks = subTasks ?? [],
+    this.isMyDay = false,
+    this.reminderDateTime,
+    this.recurrence = TaskRecurrence.none,
+    this.customRecurrence,
+  })  : steps = steps ?? [],
         createdAt = createdAt ?? DateTime.now(),
         updatedAt = updatedAt ?? DateTime.now();
 
-  /// Crear tarea desde Map (para SQLite)
+  /// Validar si la tarea es válida
+  bool isValid() {
+    if (title.trim().isEmpty) return false;
+    if (title.length > 200) return false;
+    if (description.length > 1000) return false;
+    if (dueDate != null && dueDate!.year < 1900) return false;
+    if (reminderDateTime != null && dueDate != null) {
+      if (reminderDateTime!.isAfter(dueDate!)) return false;
+    }
+    return true;
+  }
+
+  /// Verificar si está vencida
+  bool get isOverdue {
+    if (status == TaskStatus.completed) return false;
+    if (dueDate == null) return false;
+    return DateTime.now().isAfter(dueDate!);
+  }
+
+  /// Calcular progreso de pasos
+  double get progress {
+    if (steps.isEmpty) return 0.0;
+    final completed = steps.where((step) => step.isCompleted).length;
+    return completed / steps.length;
+  }
+
+  /// Copiar con modificaciones
+  Task copyWith({
+    String? id,
+    String? userId,
+    String? title,
+    String? description,
+    DateTime? dueDate,
+    bool clearDueDate = false,
+    String? category,
+    TaskPriority? priority,
+    TaskStatus? status,
+    List<TaskStep>? steps,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    bool? isMyDay,
+    DateTime? reminderDateTime,
+    bool clearReminder = false,
+    TaskRecurrence? recurrence,
+    Map<String, dynamic>? customRecurrence,
+    bool clearCustomRecurrence = false,
+  }) {
+    return Task(
+      id: id ?? this.id,
+      userId: userId ?? this.userId,
+      title: title ?? this.title,
+      description: description ?? this.description,
+      dueDate: clearDueDate ? null : (dueDate ?? this.dueDate),
+      category: category ?? this.category,
+      priority: priority ?? this.priority,
+      status: status ?? this.status,
+      steps: steps ?? this.steps,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: DateTime.now(),
+      isMyDay: isMyDay ?? this.isMyDay,
+      reminderDateTime: clearReminder ? null : (reminderDateTime ?? this.reminderDateTime),
+      recurrence: recurrence ?? this.recurrence,
+      customRecurrence: clearCustomRecurrence ? null : (customRecurrence ?? this.customRecurrence),
+    );
+  }
+
+  /// Convertir a Map para SQLite
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'userId': userId,
+      'title': title,
+      'description': description,
+      'dueDate': dueDate?.millisecondsSinceEpoch,
+      'category': category,
+      'priority': priority.name,
+      'status': status.name,
+      'steps': steps.map((s) => s.toString()).join('|||'),
+      'createdAt': createdAt.millisecondsSinceEpoch,
+      'updatedAt': updatedAt.millisecondsSinceEpoch,
+      'isMyDay': isMyDay ? 1 : 0,
+      'reminderDateTime': reminderDateTime?.millisecondsSinceEpoch,
+      'recurrence': recurrence.name,
+      'customRecurrence': customRecurrence != null ? jsonEncode(customRecurrence) : null,
+    };
+  }
+
+  /// Crear desde Map (SQLite)
   factory Task.fromMap(Map<String, dynamic> map) {
     return Task(
       id: map['id'] as String,
@@ -44,36 +234,51 @@ class Task {
           .firstWhere((e) => e.name == map['priority'], orElse: () => TaskPriority.medium),
       status: TaskStatus.values
           .firstWhere((e) => e.name == map['status'], orElse: () => TaskStatus.pending),
-      subTasks: map['subTasks'] != null
-          ? (map['subTasks'] as String)
+      steps: map['steps'] != null
+          ? (map['steps'] as String)
               .split('|||')
               .where((s) => s.isNotEmpty)
-              .map((s) => SubTask.fromString(s))
+              .map((s) => TaskStep.fromString(s))
               .toList()
           : [],
       createdAt: DateTime.fromMillisecondsSinceEpoch(map['createdAt'] as int),
       updatedAt: DateTime.fromMillisecondsSinceEpoch(map['updatedAt'] as int),
+      isMyDay: (map['isMyDay'] as int?) == 1,
+      reminderDateTime: map['reminderDateTime'] != null
+          ? DateTime.fromMillisecondsSinceEpoch(map['reminderDateTime'] as int)
+          : null,
+      recurrence: TaskRecurrence.values.firstWhere(
+        (e) => e.name == map['recurrence'],
+        orElse: () => TaskRecurrence.none,
+      ),
+      customRecurrence: map['customRecurrence'] != null
+          ? jsonDecode(map['customRecurrence'] as String) as Map<String, dynamic>
+          : null,
     );
   }
 
-  /// Convertir tarea a Map (para SQLite)
-  Map<String, dynamic> toMap() {
+  /// Convertir a JSON para Firebase
+  Map<String, dynamic> toJson() {
     return {
       'id': id,
       'userId': userId,
       'title': title,
       'description': description,
-      'dueDate': dueDate?.millisecondsSinceEpoch,
+      'dueDate': dueDate?.toIso8601String(),
       'category': category,
       'priority': priority.name,
       'status': status.name,
-      'subTasks': subTasks.map((s) => s.toString()).join('|||'),
-      'createdAt': createdAt.millisecondsSinceEpoch,
-      'updatedAt': updatedAt.millisecondsSinceEpoch,
+      'steps': steps.map((s) => s.toJson()).toList(),
+      'createdAt': createdAt.toIso8601String(),
+      'updatedAt': updatedAt.toIso8601String(),
+      'isMyDay': isMyDay,
+      'reminderDateTime': reminderDateTime?.toIso8601String(),
+      'recurrence': recurrence.name,
+      'customRecurrence': customRecurrence,
     };
   }
 
-  /// Crear tarea desde JSON (para Firebase)
+  /// Crear desde JSON (Firebase)
   factory Task.fromJson(Map<String, dynamic> json) {
     return Task(
       id: json['id'] as String,
@@ -88,87 +293,28 @@ class Task {
           .firstWhere((e) => e.name == json['priority'], orElse: () => TaskPriority.medium),
       status: TaskStatus.values
           .firstWhere((e) => e.name == json['status'], orElse: () => TaskStatus.pending),
-      subTasks: json['subTasks'] != null
-          ? (json['subTasks'] as List)
-              .map((s) => SubTask.fromJson(s as Map<String, dynamic>))
+      steps: json['steps'] != null
+          ? (json['steps'] as List)
+              .map((s) => TaskStep.fromJson(s as Map<String, dynamic>))
               .toList()
           : [],
       createdAt: DateTime.parse(json['createdAt'] as String),
       updatedAt: DateTime.parse(json['updatedAt'] as String),
+      isMyDay: json['isMyDay'] as bool? ?? false,
+      reminderDateTime: json['reminderDateTime'] != null
+          ? DateTime.parse(json['reminderDateTime'] as String)
+          : null,
+      recurrence: TaskRecurrence.values.firstWhere(
+        (e) => e.name == json['recurrence'],
+        orElse: () => TaskRecurrence.none,
+      ),
+      customRecurrence: json['customRecurrence'] as Map<String, dynamic>?,
     );
-  }
-
-  /// Convertir tarea a JSON (para Firebase)
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'userId': userId,
-      'title': title,
-      'description': description,
-      'dueDate': dueDate?.toIso8601String(),
-      'category': category,
-      'priority': priority.name,
-      'status': status.name,
-      'subTasks': subTasks.map((s) => s.toJson()).toList(),
-      'createdAt': createdAt.toIso8601String(),
-      'updatedAt': updatedAt.toIso8601String(),
-    };
-  }
-
-  /// Validar tarea
-  bool isValid() {
-    if (title.trim().isEmpty) return false;
-    if (title.length > 200) return false;
-    if (description.length > 1000) return false;
-    return true;
-  }
-
-  /// Crear copia con modificaciones
-  Task copyWith({
-    String? id,
-    String? userId,
-    String? title,
-    String? description,
-    DateTime? dueDate,
-    bool clearDueDate = false,
-    String? category,
-    TaskPriority? priority,
-    TaskStatus? status,
-    List<SubTask>? subTasks,
-    DateTime? createdAt,
-    DateTime? updatedAt,
-  }) {
-    return Task(
-      id: id ?? this.id,
-      userId: userId ?? this.userId,
-      title: title ?? this.title,
-      description: description ?? this.description,
-      dueDate: clearDueDate ? null : (dueDate ?? this.dueDate),
-      category: category ?? this.category,
-      priority: priority ?? this.priority,
-      status: status ?? this.status,
-      subTasks: subTasks ?? this.subTasks,
-      createdAt: createdAt ?? this.createdAt,
-      updatedAt: updatedAt ?? DateTime.now(),
-    );
-  }
-
-  /// Verificar si la tarea está vencida
-  bool get isOverdue {
-    if (dueDate == null) return false;
-    return dueDate!.isBefore(DateTime.now()) && status != TaskStatus.completed;
-  }
-
-  /// Obtener progreso de sub-tareas (0.0 a 1.0)
-  double get progress {
-    if (subTasks.isEmpty) return status == TaskStatus.completed ? 1.0 : 0.0;
-    final completed = subTasks.where((s) => s.isCompleted).length;
-    return completed / subTasks.length;
   }
 
   @override
   String toString() {
-    return 'Task{id: $id, title: $title, status: $status, priority: $priority}';
+    return 'Task(id: $id, title: $title, status: $status, isMyDay: $isMyDay, recurrence: $recurrence)';
   }
 
   @override
@@ -179,121 +325,4 @@ class Task {
 
   @override
   int get hashCode => id.hashCode;
-}
-
-/// Prioridades de tareas
-enum TaskPriority {
-  low,      // Baja
-  medium,   // Media
-  high,     // Alta
-  urgent,   // Urgente
-}
-
-/// Estados de tareas
-enum TaskStatus {
-  pending,    // Pendiente
-  completed,  // Completada
-  archived,   // Archivada
-}
-
-/// Modelo de Sub-tarea (checklist item)
-class SubTask {
-  final String id;
-  final String title;
-  final bool isCompleted;
-
-  SubTask({
-    required this.id,
-    required this.title,
-    this.isCompleted = false,
-  });
-
-  /// Crear desde string serializado
-  factory SubTask.fromString(String str) {
-    final parts = str.split('::');
-    return SubTask(
-      id: parts[0],
-      title: parts[1],
-      isCompleted: parts[2] == '1',
-    );
-  }
-
-  /// Convertir a string para SQLite
-  @override
-  String toString() {
-    return '$id::$title::${isCompleted ? '1' : '0'}';
-  }
-
-  /// Crear desde JSON
-  factory SubTask.fromJson(Map<String, dynamic> json) {
-    return SubTask(
-      id: json['id'] as String,
-      title: json['title'] as String,
-      isCompleted: json['isCompleted'] as bool? ?? false,
-    );
-  }
-
-  /// Convertir a JSON
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'title': title,
-      'isCompleted': isCompleted,
-    };
-  }
-
-  /// Crear copia con modificaciones
-  SubTask copyWith({
-    String? id,
-    String? title,
-    bool? isCompleted,
-  }) {
-    return SubTask(
-      id: id ?? this.id,
-      title: title ?? this.title,
-      isCompleted: isCompleted ?? this.isCompleted,
-    );
-  }
-}
-
-/// Extensiones para enums
-extension TaskPriorityExtension on TaskPriority {
-  String get displayName {
-    switch (this) {
-      case TaskPriority.low:
-        return 'Baja';
-      case TaskPriority.medium:
-        return 'Media';
-      case TaskPriority.high:
-        return 'Alta';
-      case TaskPriority.urgent:
-        return 'Urgente';
-    }
-  }
-
-  int get value {
-    switch (this) {
-      case TaskPriority.low:
-        return 1;
-      case TaskPriority.medium:
-        return 2;
-      case TaskPriority.high:
-        return 3;
-      case TaskPriority.urgent:
-        return 4;
-    }
-  }
-}
-
-extension TaskStatusExtension on TaskStatus {
-  String get displayName {
-    switch (this) {
-      case TaskStatus.pending:
-        return 'Pendiente';
-      case TaskStatus.completed:
-        return 'Completada';
-      case TaskStatus.archived:
-        return 'Archivada';
-    }
-  }
 }

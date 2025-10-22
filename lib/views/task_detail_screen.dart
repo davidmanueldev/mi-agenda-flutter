@@ -104,8 +104,8 @@ class TaskDetailScreen extends StatelessWidget {
                       const SizedBox(height: 24),
 
                       // Sub-tareas
-                      if (task.subTasks.isNotEmpty) ...[
-                        _buildSubTasksSection(context, task),
+                      if (task.steps.isNotEmpty) ...[
+                        _buildTaskStepsSection(context, task),
                         const SizedBox(height: 24),
                       ],
 
@@ -205,7 +205,7 @@ class TaskDetailScreen extends StatelessWidget {
             const Divider(),
 
             // Progreso
-            if (task.subTasks.isNotEmpty) ...[
+            if (task.steps.isNotEmpty) ...[
               _buildDetailRow(
                 context,
                 icon: Icons.trending_up,
@@ -286,7 +286,7 @@ class TaskDetailScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildSubTasksSection(BuildContext context, Task task) {
+  Widget _buildTaskStepsSection(BuildContext context, Task task) {
     final controller = context.read<TaskController>();
 
     return Column(
@@ -296,7 +296,7 @@ class TaskDetailScreen extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(
-              'Sub-tareas (${task.subTasks.where((s) => s.isCompleted).length}/${task.subTasks.length})',
+              'Sub-tareas (${task.steps.where((s) => s.isCompleted).length}/${task.steps.length})',
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
@@ -311,8 +311,8 @@ class TaskDetailScreen extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 16),
-        ...List.generate(task.subTasks.length, (index) {
-          final subTask = task.subTasks[index];
+        ...List.generate(task.steps.length, (index) {
+          final subTask = task.steps[index];
           return Card(
             margin: const EdgeInsets.only(bottom: 8),
             child: CheckboxListTile(
@@ -320,7 +320,7 @@ class TaskDetailScreen extends StatelessWidget {
               onChanged: task.status == TaskStatus.completed
                   ? null
                   : (value) async {
-                      await controller.toggleSubTask(task, index);
+                      await controller.toggleTaskStep(task, index);
                       // Forzar rebuild
                       if (context.mounted) {
                         Navigator.pushReplacement(

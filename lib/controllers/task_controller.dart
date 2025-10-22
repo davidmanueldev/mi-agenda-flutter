@@ -231,14 +231,14 @@ class TaskController with ChangeNotifier {
   }
   
   /// Toggle estado de sub-tarea
-  Future<bool> toggleSubTask(Task task, int subTaskIndex) async {
+  Future<bool> toggleTaskStep(Task task, int subTaskIndex) async {
     try {
-      final subTasks = List<SubTask>.from(task.subTasks);
-      subTasks[subTaskIndex] = subTasks[subTaskIndex].copyWith(
-        isCompleted: !subTasks[subTaskIndex].isCompleted,
+      final steps = List<TaskStep>.from(task.steps);
+      steps[subTaskIndex] = steps[subTaskIndex].copyWith(
+        isCompleted: !steps[subTaskIndex].isCompleted,
       );
       
-      final updatedTask = task.copyWith(subTasks: subTasks);
+      final updatedTask = task.copyWith(steps: steps);
       return await updateTask(updatedTask);
     } catch (e) {
       _setError('Error al actualizar sub-tarea: $e');
@@ -247,15 +247,15 @@ class TaskController with ChangeNotifier {
   }
   
   /// Agregar sub-tarea
-  Future<bool> addSubTask(Task task, String title) async {
+  Future<bool> addTaskStep(Task task, String title) async {
     try {
-      final subTasks = List<SubTask>.from(task.subTasks);
-      subTasks.add(SubTask(
+      final steps = List<TaskStep>.from(task.steps);
+      steps.add(TaskStep(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
         title: title,
       ));
       
-      final updatedTask = task.copyWith(subTasks: subTasks);
+      final updatedTask = task.copyWith(steps: steps);
       return await updateTask(updatedTask);
     } catch (e) {
       _setError('Error al agregar sub-tarea: $e');
@@ -264,12 +264,12 @@ class TaskController with ChangeNotifier {
   }
   
   /// Eliminar sub-tarea
-  Future<bool> removeSubTask(Task task, int subTaskIndex) async {
+  Future<bool> removeTaskStep(Task task, int subTaskIndex) async {
     try {
-      final subTasks = List<SubTask>.from(task.subTasks);
-      subTasks.removeAt(subTaskIndex);
+      final steps = List<TaskStep>.from(task.steps);
+      steps.removeAt(subTaskIndex);
       
-      final updatedTask = task.copyWith(subTasks: subTasks);
+      final updatedTask = task.copyWith(steps: steps);
       return await updateTask(updatedTask);
     } catch (e) {
       _setError('Error al eliminar sub-tarea: $e');
@@ -341,7 +341,7 @@ class TaskController with ChangeNotifier {
   
   /// Obtener tareas archivadas
   List<Task> get archivedTasks {
-    return tasks.where((task) => task.status == TaskStatus.archived).toList();
+    return tasks.where((task) => task.status == TaskStatus.completed).toList();
   }
   
   /// Obtener tareas por prioridad urgente

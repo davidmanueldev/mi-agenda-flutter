@@ -30,7 +30,7 @@ class DatabaseService implements DatabaseInterface {
 
     return await openDatabase(
       path,
-      version: 2, // Incrementada para agregar tabla de tareas
+      version: 3, // Versión 3: Nuevos campos para tareas mejoradas
       onCreate: _createTables,
       onUpgrade: _upgradeDatabase,
     );
@@ -66,7 +66,7 @@ class DatabaseService implements DatabaseInterface {
       )
     ''');
 
-    // Tabla de tareas
+    // Tabla de tareas (mejorada)
     await db.execute('''
       CREATE TABLE tasks (
         id TEXT PRIMARY KEY,
@@ -77,9 +77,13 @@ class DatabaseService implements DatabaseInterface {
         category TEXT NOT NULL,
         priority TEXT NOT NULL,
         status TEXT NOT NULL,
-        subTasks TEXT,
+        steps TEXT,
         createdAt INTEGER NOT NULL,
         updatedAt INTEGER NOT NULL,
+        isMyDay INTEGER NOT NULL DEFAULT 0,
+        reminderDateTime INTEGER,
+        recurrence TEXT NOT NULL DEFAULT 'none',
+        customRecurrence TEXT,
         FOREIGN KEY (category) REFERENCES categories (id) ON DELETE CASCADE
       )
     ''');
@@ -110,7 +114,7 @@ class DatabaseService implements DatabaseInterface {
           category TEXT NOT NULL,
           priority TEXT NOT NULL,
           status TEXT NOT NULL,
-          subTasks TEXT,
+          steps TEXT,
           createdAt INTEGER NOT NULL,
           updatedAt INTEGER NOT NULL,
           FOREIGN KEY (category) REFERENCES categories (id) ON DELETE CASCADE
@@ -121,6 +125,60 @@ class DatabaseService implements DatabaseInterface {
       await db.execute('CREATE INDEX idx_tasks_status ON tasks(status)');
       await db.execute('CREATE INDEX idx_tasks_priority ON tasks(priority)');
       await db.execute('CREATE INDEX idx_tasks_category ON tasks(category)');
+    }
+    
+    // Migración de versión 2 a 3: Agregar nuevos campos a tareas
+    if (oldVersion < 3) {
+      // Agregar nuevos campos
+      await db.execute('ALTER TABLE tasks ADD COLUMN isMyDay INTEGER NOT NULL DEFAULT 0');
+      await db.execute('ALTER TABLE tasks ADD COLUMN reminderDateTime INTEGER');
+      await db.execute('ALTER TABLE tasks ADD COLUMN recurrence TEXT NOT NULL DEFAULT \'none\'');
+      await db.execute('ALTER TABLE tasks ADD COLUMN customRecurrence TEXT');
+      
+      // Renombrar columna steps a steps (SQLite no soporta RENAME COLUMN antes de 3.25.0)
+      // Crear nueva tabla temporal con el nuevo esquema
+      await db.execute('''
+        CREATE TABLE tasks_new (
+          id TEXT PRIMARY KEY,
+          userId TEXT NOT NULL,
+          title TEXT NOT NULL,
+          description TEXT NOT NULL,
+          dueDate INTEGER,
+          category TEXT NOT NULL,
+          priority TEXT NOT NULL,
+          status TEXT NOT NULL,
+          steps TEXT,
+          createdAt INTEGER NOT NULL,
+          updatedAt INTEGER NOT NULL,
+          isMyDay INTEGER NOT NULL DEFAULT 0,
+          reminderDateTime INTEGER,
+          recurrence TEXT NOT NULL DEFAULT 'none',
+          customRecurrence TEXT,
+          FOREIGN KEY (category) REFERENCES categories (id) ON DELETE CASCADE
+        )
+      ''');
+      
+      // Copiar datos de la tabla antigua (steps -> steps)
+      await db.execute('''
+        INSERT INTO tasks_new (id, userId, title, description, dueDate, category, 
+                               priority, status, steps, createdAt, updatedAt,
+                               isMyDay, reminderDateTime, recurrence, customRecurrence)
+        SELECT id, userId, title, description, dueDate, category, priority, status, 
+               steps, createdAt, updatedAt, 0, NULL, 'none', NULL
+        FROM tasks
+      ''');
+      
+      // Eliminar tabla antigua y renombrar
+      await db.execute('DROP TABLE tasks');
+      await db.execute('ALTER TABLE tasks_new RENAME TO tasks');
+      
+      // Recrear índices
+      await db.execute('CREATE INDEX idx_tasks_dueDate ON tasks(dueDate)');
+      await db.execute('CREATE INDEX idx_tasks_status ON tasks(status)');
+      await db.execute('CREATE INDEX idx_tasks_priority ON tasks(priority)');
+      await db.execute('CREATE INDEX idx_tasks_category ON tasks(category)');
+      await db.execute('CREATE INDEX idx_tasks_isMyDay ON tasks(isMyDay)');
+      await db.execute('CREATE INDEX idx_tasks_recurrence ON tasks(recurrence)');
     }
   }
 
@@ -616,7 +674,7 @@ class DatabaseService implements DatabaseInterface {
       return await db.update(
         'tasks',
         {
-          'status': TaskStatus.archived.name,
+          'status': TaskStatus.completed.name,
           'updatedAt': DateTime.now().millisecondsSinceEpoch,
         },
         where: 'id = ?',
