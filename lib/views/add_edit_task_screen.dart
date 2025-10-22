@@ -211,11 +211,8 @@ class _AddEditTaskScreenState extends State<AddEditTaskScreen> {
                               child: Row(
                                 children: [
                                   Icon(
-                                    IconData(
-                                      category.icon,
-                                      fontFamily: 'MaterialIcons',
-                                    ),
-                                    color: Color(category.color),
+                                    category.icon,
+                                    color: category.color,
                                     size: 20,
                                   ),
                                   const SizedBox(width: 8),
