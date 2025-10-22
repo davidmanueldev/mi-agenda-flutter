@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'controllers/event_controller.dart';
+import 'controllers/task_controller.dart';
 import 'services/database_service_hybrid_v2.dart';
 import 'services/firebase_service.dart';
 import 'services/notification_service.dart';
-import 'views/home_screen.dart';
+import 'views/main_screen.dart';
 
 /// Punto de entrada de la aplicación Mi Agenda
 /// Implementa arquitectura MVC con inyección de dependencias
@@ -51,6 +52,10 @@ class MiAgendaApp extends StatelessWidget {
             notificationService: NotificationService(),
           ),
         ),
+        // Provider para el controlador de tareas
+        ChangeNotifierProvider(
+          create: (context) => TaskController(),
+        ),
       ],
       child: MaterialApp(
         title: 'Mi Agenda',
@@ -61,8 +66,8 @@ class MiAgendaApp extends StatelessWidget {
         darkTheme: _buildDarkTheme(),
         themeMode: ThemeMode.system,
         
-        // Pantalla inicial
-        home: const HomeScreen(),
+        // Pantalla inicial con navegación
+        home: const MainScreen(),
         
         // Configuración de navegación y rutas
         onGenerateRoute: _generateRoute,
@@ -138,7 +143,7 @@ class MiAgendaApp extends StatelessWidget {
   Route<dynamic>? _generateRoute(RouteSettings settings) {
     switch (settings.name) {
       case '/':
-        return MaterialPageRoute(builder: (_) => const HomeScreen());
+        return MaterialPageRoute(builder: (_) => const MainScreen());
       default:
         return null;
     }
