@@ -6,6 +6,8 @@ import '../models/event.dart';
 import '../services/connectivity_service.dart';
 import 'add_edit_event_screen.dart';
 import 'event_detail_screen.dart';
+import 'list_categories_screen.dart';
+import 'task_list_screen.dart';
 import '../widgets/event_card.dart';
 import '../widgets/custom_app_bar.dart';
 
@@ -35,6 +37,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: const CustomAppBar(title: 'Mi Agenda'),
+      drawer: _buildDrawer(context),
       body: Consumer<EventController>(
         builder: (context, controller, child) {
           // Mostrar indicador de carga
@@ -304,6 +307,136 @@ class _HomeScreenState extends State<HomeScreen> {
       MaterialPageRoute(
         builder: (context) => EventDetailScreen(event: event),
       ),
+    );
+  }
+
+  /// Construir el drawer de navegación
+  Widget _buildDrawer(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return Drawer(
+      child: ListView(
+        padding: EdgeInsets.zero,
+        children: [
+          DrawerHeader(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  colorScheme.primary,
+                  colorScheme.secondary,
+                ],
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                Icon(
+                  Icons.calendar_today,
+                  size: 48,
+                  color: colorScheme.onPrimary,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Mi Agenda',
+                  style: theme.textTheme.headlineSmall?.copyWith(
+                    color: colorScheme.onPrimary,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Organiza tu vida',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: colorScheme.onPrimary.withOpacity(0.8),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          ListTile(
+            leading: const Icon(Icons.home),
+            title: const Text('Inicio'),
+            selected: true,
+            onTap: () {
+              Navigator.pop(context);
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.category),
+            title: const Text('Categorías'),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const ListCategoriesScreen(),
+                ),
+              );
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.task_alt),
+            title: const Text('Tareas'),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const TaskListScreen(),
+                ),
+              );
+            },
+          ),
+          const Divider(),
+          ListTile(
+            leading: const Icon(Icons.settings),
+            title: const Text('Configuración'),
+            onTap: () {
+              Navigator.pop(context);
+              // TODO: Navegar a configuración
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Configuración - Próximamente'),
+                ),
+              );
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.info_outline),
+            title: const Text('Acerca de'),
+            onTap: () {
+              Navigator.pop(context);
+              _showAboutDialog(context);
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Mostrar diálogo "Acerca de"
+  void _showAboutDialog(BuildContext context) {
+    showAboutDialog(
+      context: context,
+      applicationName: 'Mi Agenda',
+      applicationVersion: '1.0.0',
+      applicationIcon: const Icon(
+        Icons.calendar_today,
+        size: 48,
+      ),
+      children: [
+        const Text(
+          'Una aplicación de gestión de eventos y tareas con sincronización en la nube.',
+        ),
+        const SizedBox(height: 16),
+        const Text(
+          'Desarrollado con Flutter y Firebase.',
+        ),
+      ],
     );
   }
 }
