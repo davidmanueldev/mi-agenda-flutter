@@ -4,6 +4,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest.dart' as tz;
 import '../models/event.dart';
+import '../models/task.dart';
 
 /// Servicio de notificaciones para recordatorios de eventos
 /// Implementa mejores prácticas de seguridad y manejo de permisos
@@ -207,6 +208,124 @@ class NotificationService {
     }
   }
 
+  /// Programar notificación para una tarea
+  Future<void> scheduleTaskNotification(Task task) async {
+    if (!_isInitialized) {
+      await initialize();
+    }
+
+    try {
+      // Si la tarea tiene recordatorio personalizado
+      if (task.reminderDateTime != null && task.reminderDateTime!.isAfter(DateTime.now())) {
+        await _scheduleTaskNotification(
+          id: task.id.hashCode,
+          title: 'Recordatorio: ${task.title}',
+          body: task.description.isNotEmpty ? task.description : 'Tienes una tarea pendiente',
+          scheduledDate: task.reminderDateTime!,
+          payload: task.id,
+        );
+      } 
+      // Si no tiene recordatorio pero tiene fecha de vencimiento, notificar 1 hora antes
+      else if (task.dueDate != null) {
+        final notificationTime = task.dueDate!.subtract(const Duration(hours: 1));
+        
+        if (notificationTime.isAfter(DateTime.now())) {
+          await _scheduleTaskNotification(
+            id: task.id.hashCode,
+            title: 'Tarea por vencer: ${task.title}',
+            body: 'Vence en 1 hora',
+            scheduledDate: notificationTime,
+            payload: task.id,
+          );
+        }
+
+        // También notificar al momento del vencimiento
+        if (task.dueDate!.isAfter(DateTime.now())) {
+          await _scheduleTaskNotification(
+            id: ('${task.id}_due').hashCode,
+            title: '¡Tarea venciendo ahora!',
+            body: task.title,
+            scheduledDate: task.dueDate!,
+            payload: task.id,
+          );
+        }
+      }
+    } catch (e) {
+      throw NotificationException('Error al programar notificación de tarea: $e');
+    }
+  }
+
+  /// Programar una notificación específica para tarea
+  Future<void> _scheduleTaskNotification({
+    required int id,
+    required String title,
+    required String body,
+    required DateTime scheduledDate,
+    String? payload,
+  }) async {
+    // Detalles de notificación para Android
+    const androidDetails = AndroidNotificationDetails(
+      'task_reminders',
+      'Recordatorios de Tareas',
+      channelDescription: 'Notificaciones para recordatorios de tareas',
+      importance: Importance.high,
+      priority: Priority.high,
+      enableVibration: true,
+      playSound: true,
+      icon: '@mipmap/ic_launcher',
+      color: Color(0xFF4CAF50),
+    );
+
+    // Detalles de notificación para iOS
+    const iosDetails = DarwinNotificationDetails(
+      presentAlert: true,
+      presentBadge: true,
+      presentSound: true,
+    );
+
+    // Detalles generales
+    const notificationDetails = NotificationDetails(
+      android: androidDetails,
+      iOS: iosDetails,
+    );
+
+    // Programar la notificación
+    await _notificationsPlugin.zonedSchedule(
+      id,
+      title,
+      body,
+      _convertToTZDateTime(scheduledDate),
+      notificationDetails,
+      payload: payload,
+      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
+    );
+  }
+
+  /// Actualizar notificación de tarea
+  Future<void> updateTaskNotification(Task task) async {
+    // Cancelar notificaciones existentes
+    await cancelTaskNotification(task.id);
+    
+    // Solo programar si la tarea está pendiente
+    if (task.status == TaskStatus.pending) {
+      await scheduleTaskNotification(task);
+    }
+  }
+
+  /// Cancelar notificaciones de una tarea
+  Future<void> cancelTaskNotification(String taskId) async {
+    try {
+      // Cancelar notificación de recordatorio
+      await _notificationsPlugin.cancel(taskId.hashCode);
+      
+      // Cancelar notificación de vencimiento
+      await _notificationsPlugin.cancel(('${taskId}_due').hashCode);
+    } catch (e) {
+      throw NotificationException('Error al cancelar notificaciones de tarea: $e');
+    }
+  }
+
   /// Mostrar notificación inmediata
   Future<void> showImmediateNotification({
     required int id,
@@ -268,6 +387,14 @@ class NotificationService {
       importance: Importance.high,
     );
 
+    // Canal para recordatorios de tareas
+    const taskChannel = AndroidNotificationChannel(
+      'task_reminders',
+      'Recordatorios de Tareas',
+      description: 'Notificaciones para recordatorios de tareas',
+      importance: Importance.high,
+    );
+
     // Canal para notificaciones inmediatas
     const immediateChannel = AndroidNotificationChannel(
       'immediate_notifications',
@@ -276,14 +403,13 @@ class NotificationService {
       importance: Importance.high,
     );
 
-    // Crear canales en el dispositivo
-    await _notificationsPlugin
-        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
-        ?.createNotificationChannel(eventChannel);
+    final androidImplementation = _notificationsPlugin
+        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
 
-    await _notificationsPlugin
-        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
-        ?.createNotificationChannel(immediateChannel);
+    // Crear canales en el dispositivo
+    await androidImplementation?.createNotificationChannel(eventChannel);
+    await androidImplementation?.createNotificationChannel(taskChannel);
+    await androidImplementation?.createNotificationChannel(immediateChannel);
   }
 
   /// Limpiar recursos del servicio

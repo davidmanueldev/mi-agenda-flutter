@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'controllers/event_controller.dart';
 import 'controllers/task_controller.dart';
+import 'controllers/category_controller.dart';
 import 'services/database_service.dart';
 import 'services/database_service_hybrid_v2.dart';
 import 'services/firebase_service.dart';
@@ -63,9 +64,18 @@ class MiAgendaApp extends StatelessWidget {
             notificationService: NotificationService(),
           ),
         ),
-        // Provider para el controlador de tareas
+        // Provider para el controlador de tareas con inyección de dependencias
         ChangeNotifierProvider(
-          create: (context) => TaskController(),
+          create: (context) => TaskController(
+            databaseService: DatabaseServiceHybridV2(),
+            notificationService: NotificationService(),
+          ),
+        ),
+        // Provider para el controlador de categorías
+        ChangeNotifierProvider(
+          create: (context) => CategoryController(
+            databaseService: DatabaseServiceHybridV2(),
+          ),
         ),
       ],
       child: MaterialApp(

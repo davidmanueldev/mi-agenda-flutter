@@ -1,5 +1,13 @@
 # Mi Agenda - Documentación Técnica del Proyecto
 
+## REPOSITORIO URL: 
+
+[https://github.com/davidmanueldev/mi-agenda-flutter](https://github.com/davidmanueldev/mi-agenda-flutter)
+
+## DIAPOSITIVAS
+
+[https://chat.z.ai/space/r02zs8teava0-ppt](https://chat.z.ai/space/r02zs8teava0-ppt)
+
 ## 📱 Información General
 
 **Nombre del Proyecto:** Mi Agenda - Aplicación de Gestión Personal  

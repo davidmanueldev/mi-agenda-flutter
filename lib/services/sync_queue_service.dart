@@ -7,6 +7,7 @@ enum SyncOperation {
   updateEvent,
   deleteEvent,
   createCategory,
+  updateCategory,
   deleteCategory,
   createTask,
   updateTask,

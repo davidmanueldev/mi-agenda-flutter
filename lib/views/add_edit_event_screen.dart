@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:form_field_validator/form_field_validator.dart';
 import '../controllers/event_controller.dart';
 import '../models/event.dart';
+import '../models/category.dart';
 import '../widgets/custom_app_bar.dart';
 
 /// Pantalla para agregar o editar eventos
@@ -192,9 +193,19 @@ class _AddEditEventScreenState extends State<AddEditEventScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Categoría',
-          style: Theme.of(context).textTheme.titleMedium,
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Categoría',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            TextButton.icon(
+              onPressed: () => _showCreateCategoryDialog(controller),
+              icon: const Icon(Icons.add, size: 18),
+              label: const Text('Nueva'),
+            ),
+          ],
         ),
         const SizedBox(height: 8),
         Container(
@@ -202,9 +213,9 @@ class _AddEditEventScreenState extends State<AddEditEventScreen> {
             border: Border.all(color: Theme.of(context).colorScheme.outline),
             borderRadius: BorderRadius.circular(8),
           ),
+          padding: const EdgeInsets.all(12),
           child: controller.categories.isEmpty
-              ? const Padding(
-                  padding: EdgeInsets.all(16.0),
+              ? const Center(
                   child: Text('Cargando categorías...'),
                 )
               : Wrap(
@@ -547,6 +558,152 @@ class _AddEditEventScreenState extends State<AddEditEventScreen> {
       SnackBar(
         content: Text(message),
         backgroundColor: Theme.of(context).colorScheme.error,
+      ),
+    );
+  }
+
+  /// Mostrar diálogo para crear nueva categoría
+  Future<void> _showCreateCategoryDialog(EventController controller) async {
+    final nameController = TextEditingController();
+    Color selectedColor = Colors.blue;
+    IconData selectedIcon = Icons.category;
+    
+    // Colores predefinidos
+    final colors = [
+      Colors.blue, Colors.green, Colors.red, Colors.orange,
+      Colors.purple, Colors.teal, Colors.pink, Colors.amber,
+      Colors.indigo, Colors.cyan,
+    ];
+    
+    // Iconos predefinidos
+    final icons = [
+      Icons.work, Icons.personal_injury, Icons.school, Icons.fitness_center,
+      Icons.shopping_cart, Icons.restaurant, Icons.flight, Icons.local_hospital,
+      Icons.celebration, Icons.sports_soccer, Icons.music_note, Icons.book,
+    ];
+
+    await showDialog(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Nueva Categoría'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Campo de nombre
+                TextField(
+                  controller: nameController,
+                  decoration: const InputDecoration(
+                    labelText: 'Nombre',
+                    hintText: 'Ej: Reuniones',
+                  ),
+                  autofocus: true,
+                  textCapitalization: TextCapitalization.sentences,
+                ),
+                const SizedBox(height: 20),
+                
+                // Selector de color
+                Text('Color', style: Theme.of(context).textTheme.titleSmall),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: colors.map((color) {
+                    final isSelected = color == selectedColor;
+                    return GestureDetector(
+                      onTap: () => setDialogState(() => selectedColor = color),
+                      child: Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: color,
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: isSelected ? Colors.black : Colors.transparent,
+                            width: 3,
+                          ),
+                        ),
+                        child: isSelected 
+                          ? const Icon(Icons.check, color: Colors.white, size: 20)
+                          : null,
+                      ),
+                    );
+                  }).toList(),
+                ),
+                const SizedBox(height: 20),
+                
+                // Selector de icono
+                Text('Icono', style: Theme.of(context).textTheme.titleSmall),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: icons.map((icon) {
+                    final isSelected = icon == selectedIcon;
+                    return GestureDetector(
+                      onTap: () => setDialogState(() => selectedIcon = icon),
+                      child: Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: isSelected ? selectedColor.withOpacity(0.2) : Colors.grey[200],
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: isSelected ? selectedColor : Colors.transparent,
+                            width: 2,
+                          ),
+                        ),
+                        child: Icon(icon, color: isSelected ? selectedColor : Colors.grey),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () async {
+                final name = nameController.text.trim();
+                if (name.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('El nombre es obligatorio')),
+                  );
+                  return;
+                }
+                
+                // Crear nueva categoría
+                final newCategory = Category.create(
+                  name: name,
+                  description: 'Categoría personalizada',
+                  color: selectedColor,
+                  icon: selectedIcon,
+                );
+                
+                Navigator.of(context).pop();
+                
+                // Guardar categoría
+                final success = await controller.createCategory(newCategory);
+                
+                if (success && mounted) {
+                  // Auto-seleccionar la nueva categoría
+                  setState(() {
+                    _selectedCategoryId = newCategory.id;
+                  });
+                  
+                  _showSuccessMessage('Categoría creada correctamente');
+                }
+              },
+              child: const Text('Crear'),
+            ),
+          ],
+        ),
       ),
     );
   }

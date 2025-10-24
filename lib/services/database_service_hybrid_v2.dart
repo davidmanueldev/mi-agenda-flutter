@@ -59,6 +59,11 @@ class DatabaseServiceHybridV2 implements DatabaseInterface {
     // Verificar conectividad inicial
     _isOnline = await _connectivityService.checkConnectivity();
     
+    // Si está online, verificar si Firebase tiene datos y limpiar cola obsoleta
+    if (_isOnline) {
+      await _cleanupObsoleteQueueOnStartup();
+    }
+    
     // Escuchar cambios de conectividad
     _connectivitySubscription = _connectivityService.connectionStream.listen((isOnline) {
       _isOnline = isOnline;
@@ -97,7 +102,7 @@ class DatabaseServiceHybridV2 implements DatabaseInterface {
     );
     
     // Listener para tareas
-    _tasksSubscription = _firebaseService.tasksStream().listen(
+    _tasksSubscription = _firebaseService.getTasksStream().listen(
       (tasks) {
         _syncTasksToLocal(tasks);
       },
@@ -170,16 +175,82 @@ class DatabaseServiceHybridV2 implements DatabaseInterface {
   /// Sincronizar categorías de Firebase a SQLite
   Future<void> _syncCategoriesToLocal(List<model.Category> firebaseCategories) async {
     try {
-      for (final category in firebaseCategories) {
+      print('🔄 Iniciando sincronización de categorías...');
+      print('📦 Categorías en Firebase: ${firebaseCategories.length}');
+      
+      _updateSyncStatus(SyncStatus.syncing);
+      bool hasChanges = false;
+      
+      // Si Firebase tiene datos, limpiar operaciones de creación de categorías pendientes
+      // porque Firebase es la fuente de verdad
+      if (firebaseCategories.isNotEmpty) {
+        await _cleanupCategoryCreateOperations();
+      }
+      
+      // Obtener categorías locales para comparar
+      final localCategories = await _localService.getAllCategories();
+      print('📱 Categorías locales: ${localCategories.length}');
+      final localCategoriesMap = {for (var c in localCategories) c.id: c};
+      
+      // Sincronizar categorías de Firebase a SQLite
+      for (final firebaseCategory in firebaseCategories) {
+        final localCategory = localCategoriesMap[firebaseCategory.id];
+        
+        if (localCategory == null) {
+          // Categoría nueva en Firebase, agregar localmente
+          print('➕ Nueva categoría desde Firebase: ${firebaseCategory.name}');
+          await _localService.insertCategory(firebaseCategory);
+          hasChanges = true;
+        } else if (_hasCategoryChanged(localCategory, firebaseCategory)) {
+          // Categoría modificada en Firebase, actualizar localmente
+          print('🔄 Actualizando categoría desde Firebase: ${firebaseCategory.name}');
+          await _localService.updateCategory(firebaseCategory);
+          hasChanges = true;
+        } else {
+          print('✓ Categoría sin cambios: ${firebaseCategory.name}');
+        }
+        
+        // Remover del map para identificar categorías eliminadas
+        localCategoriesMap.remove(firebaseCategory.id);
+      }
+      
+      // Las categorías que quedan en el map fueron eliminadas en Firebase
+      for (final deletedCategory in localCategoriesMap.values) {
+        print('⚠️ Eliminando categoría eliminada en Firebase: ${deletedCategory.name}');
         try {
-          await _localService.insertCategory(category);
+          // Eliminar directamente sin verificar eventos asociados (sincronización forzada)
+          final db = await _localService.database;
+          await db.delete(
+            'categories',
+            where: 'id = ?',
+            whereArgs: [deletedCategory.id],
+          );
+          hasChanges = true;
+          print('✅ Categoría ${deletedCategory.name} eliminada exitosamente');
         } catch (e) {
-          // Ignorar si ya existe
+          print('❌ No se pudo eliminar categoría ${deletedCategory.name}: $e');
         }
       }
+      
+      if (hasChanges) {
+        print('✅ Sincronización de categorías completada con cambios');
+        onDataChanged?.call();
+        _updateSyncStatus(SyncStatus.synchronized);
+      } else {
+        print('✅ Sincronización de categorías completada sin cambios');
+      }
     } catch (e) {
-      print('Error sincronizando categorías: $e');
+      print('❌ Error sincronizando categorías: $e');
+      _updateSyncStatus(SyncStatus.error);
     }
+  }
+  
+  /// Verificar si una categoría cambió
+  bool _hasCategoryChanged(model.Category local, model.Category firebase) {
+    return local.name != firebase.name ||
+           local.description != firebase.description ||
+           local.color.value != firebase.color.value ||
+           local.icon.codePoint != firebase.icon.codePoint;
   }
   
   /// Sincronizar tareas de Firebase a SQLite
@@ -276,6 +347,11 @@ class DatabaseServiceHybridV2 implements DatabaseInterface {
               await _firebaseService.createCategory(category);
               break;
               
+            case SyncOperation.updateCategory:
+              final category = model.Category.fromJson(item.data);
+              await _firebaseService.updateCategory(category);
+              break;
+              
             case SyncOperation.deleteCategory:
               await _firebaseService.deleteCategory(item.data['id']);
               break;
@@ -317,6 +393,39 @@ class DatabaseServiceHybridV2 implements DatabaseInterface {
   void _updateSyncStatus(SyncStatus status) {
     _currentSyncStatus = status;
     _syncStatusController.add(status);
+  }
+  
+  /// Limpiar operaciones de creación de categorías de la cola cuando Firebase tiene datos
+  /// Firebase es la fuente de verdad, por lo que las categorías locales deben ser eliminadas
+  Future<void> _cleanupCategoryCreateOperations() async {
+    final queue = _syncQueue.getQueue();
+    final categoryCreateOps = queue.where(
+      (item) => item.operation == SyncOperation.createCategory
+    ).toList();
+    
+    if (categoryCreateOps.isNotEmpty) {
+      print('🧹 Limpiando ${categoryCreateOps.length} operaciones obsoletas de creación de categorías...');
+      for (final op in categoryCreateOps) {
+        await _syncQueue.removeFromQueue(op.id);
+        print('   ✓ Removida operación obsoleta: ${op.data['name']}');
+      }
+    }
+  }
+  
+  /// Limpiar operaciones obsoletas de la cola al iniciar
+  /// Si Firebase tiene datos, las operaciones de creación local son obsoletas
+  Future<void> _cleanupObsoleteQueueOnStartup() async {
+    try {
+      // Verificar si Firebase tiene categorías
+      final firebaseCategories = await _firebaseService.getAllCategories();
+      
+      if (firebaseCategories.isNotEmpty) {
+        print('🔍 Firebase tiene ${firebaseCategories.length} categorías. Limpiando operaciones de creación local obsoletas...');
+        await _cleanupCategoryCreateOperations();
+      }
+    } catch (e) {
+      print('Error al limpiar cola obsoleta: $e');
+    }
   }
   
   // ==================== OPERACIONES DE EVENTOS ====================
@@ -433,6 +542,26 @@ class DatabaseServiceHybridV2 implements DatabaseInterface {
       }
     } else {
       await _syncQueue.addToQueue(SyncOperation.createCategory, category.toJson());
+    }
+    
+    return 1;
+  }
+  
+  @override
+  Future<int> updateCategory(model.Category category) async {
+    // Actualizar en SQLite
+    await _localService.updateCategory(category);
+    
+    // Si está online, intentar Firebase
+    if (_isOnline) {
+      try {
+        await _firebaseService.updateCategory(category);
+      } catch (e) {
+        print('Firebase falló, agregando a cola: $e');
+        await _syncQueue.addToQueue(SyncOperation.updateCategory, category.toJson());
+      }
+    } else {
+      await _syncQueue.addToQueue(SyncOperation.updateCategory, category.toJson());
     }
     
     return 1;

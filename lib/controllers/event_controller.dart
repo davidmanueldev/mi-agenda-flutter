@@ -100,11 +100,6 @@ class EventController extends ChangeNotifier {
   Future<void> loadCategories() async {
     try {
       _categories = await _databaseService.getAllCategories();
-      
-      // Si no hay categorías, crear las predeterminadas
-      if (_categories.isEmpty) {
-        await _createDefaultCategories();
-      }
     } catch (e) {
       _setError('Error al cargar categorías: $e');
     }
@@ -265,13 +260,74 @@ class EventController extends ChangeNotifier {
     });
   }
 
-  /// Crear categorías predeterminadas
-  Future<void> _createDefaultCategories() async {
-    final defaultCategories = model.Category.defaultCategories;
-    for (final category in defaultCategories) {
+  /// Crear nueva categoría
+  Future<bool> createCategory(model.Category category) async {
+    _setLoading(true);
+    _clearError();
+    
+    try {
       await _databaseService.insertCategory(category);
+      
+      // Actualizar lista local
+      _categories = [..._categories, category];
+      notifyListeners();
+      
+      return true;
+    } catch (e) {
+      _setError('Error al crear categoría: $e');
+      return false;
+    } finally {
+      _setLoading(false);
     }
-    _categories = defaultCategories;
+  }
+
+  /// Actualizar una categoría existente
+  Future<bool> updateCategory(model.Category category) async {
+    _setLoading(true);
+    _clearError();
+    
+    try {
+      await _databaseService.updateCategory(category);
+      
+      // Actualizar lista local
+      final index = _categories.indexWhere((c) => c.id == category.id);
+      if (index != -1) {
+        _categories = [
+          ..._categories.sublist(0, index),
+          category,
+          ..._categories.sublist(index + 1),
+        ];
+        notifyListeners();
+      }
+      
+      return true;
+    } catch (e) {
+      _setError('Error al actualizar categoría: $e');
+      return false;
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  /// Eliminar una categoría
+  Future<bool> deleteCategory(String categoryId) async {
+    _setLoading(true);
+    _clearError();
+    
+    try {
+      await _databaseService.deleteCategory(categoryId);
+      
+      // Actualizar lista local
+      _categories = _categories.where((c) => c.id != categoryId).toList();
+      notifyListeners();
+      
+      return true;
+    } catch (e) {
+      _setError('Error al eliminar categoría: $e');
+      return false;
+    } finally {
+      _setLoading(false);
+    }
   }
 
   /// Métodos auxiliares para manejo de estado

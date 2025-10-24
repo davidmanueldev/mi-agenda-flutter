@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
 import '../models/task.dart';
 import '../models/category.dart' as model;
+import '../services/database_interface.dart';
 import '../services/database_service_hybrid_v2.dart';
 import '../services/connectivity_service.dart';
+import '../services/notification_service.dart';
 
 /// Controlador para gestión de tareas
 /// Implementa patrón Provider para gestión de estado
 class TaskController with ChangeNotifier {
-  final DatabaseServiceHybridV2 _database = DatabaseServiceHybridV2();
+  final DatabaseInterface _database;
+  final NotificationService _notificationService;
   final ConnectivityService _connectivityService = ConnectivityService();
   
   List<Task> _tasks = [];
@@ -33,7 +36,12 @@ class TaskController with ChangeNotifier {
   String? get categoryFilter => _categoryFilter;
   String get searchQuery => _searchQuery;
   
-  TaskController() {
+  /// Constructor con inyección de dependencias
+  TaskController({
+    required DatabaseInterface databaseService,
+    required NotificationService notificationService,
+  }) : _database = databaseService,
+       _notificationService = notificationService {
     _initialize();
   }
   
@@ -42,10 +50,12 @@ class TaskController with ChangeNotifier {
     _setLoading(true);
     
     try {
-      // Configurar callback para cambios de datos
-      _database.onDataChanged = () {
-        _loadTasks();
-      };
+      // Configurar callback para cambios de datos (solo si es DatabaseServiceHybridV2)
+      if (_database is DatabaseServiceHybridV2) {
+        (_database as DatabaseServiceHybridV2).onDataChanged = () {
+          _loadTasks();
+        };
+      }
       
       // Cargar datos iniciales
       await Future.wait([
@@ -148,6 +158,12 @@ class TaskController with ChangeNotifier {
     
     try {
       await _database.insertTask(task);
+      
+      // Programar notificación si tiene fecha de vencimiento o recordatorio
+      if (task.dueDate != null || task.reminderDateTime != null) {
+        await _notificationService.scheduleTaskNotification(task);
+      }
+      
       await _loadTasks();
       return true;
     } catch (e) {
@@ -165,6 +181,10 @@ class TaskController with ChangeNotifier {
     
     try {
       await _database.updateTask(task);
+      
+      // Actualizar notificación
+      await _notificationService.updateTaskNotification(task);
+      
       await _loadTasks();
       return true;
     } catch (e) {
@@ -181,6 +201,9 @@ class TaskController with ChangeNotifier {
     _clearError();
     
     try {
+      // Cancelar notificaciones antes de eliminar
+      await _notificationService.cancelTaskNotification(taskId);
+      
       await _database.deleteTask(taskId);
       await _loadTasks();
       return true;
@@ -207,7 +230,21 @@ class TaskController with ChangeNotifier {
     _clearError();
     
     try {
-      await _database.completeTask(taskId);
+      final task = await _database.getTaskById(taskId);
+      if (task == null) {
+        _setError('Tarea no encontrada');
+        return false;
+      }
+      
+      final updatedTask = task.copyWith(
+        status: TaskStatus.completed,
+        updatedAt: DateTime.now(),
+      );
+      
+      // Cancelar notificaciones al completar
+      await _notificationService.cancelTaskNotification(taskId);
+      
+      await _database.updateTask(updatedTask);
       await _loadTasks();
       return true;
     } catch (e) {
@@ -216,12 +253,23 @@ class TaskController with ChangeNotifier {
     }
   }
   
-  /// Archivar tarea
+  /// Archivar tarea (marcar como completada)
   Future<bool> archiveTask(String taskId) async {
     _clearError();
     
     try {
-      await _database.archiveTask(taskId);
+      final task = await _database.getTaskById(taskId);
+      if (task == null) {
+        _setError('Tarea no encontrada');
+        return false;
+      }
+      
+      final updatedTask = task.copyWith(
+        status: TaskStatus.completed,
+        updatedAt: DateTime.now(),
+      );
+      
+      await _database.updateTask(updatedTask);
       await _loadTasks();
       return true;
     } catch (e) {

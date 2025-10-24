@@ -234,6 +234,22 @@ class DatabaseService implements DatabaseInterface {
     }
   }
 
+  /// Actualizar una categoría existente
+  @override
+  Future<int> updateCategory(model.Category category) async {
+    try {
+      final db = await database;
+      return await db.update(
+        'categories',
+        category.toMap(),
+        where: 'id = ?',
+        whereArgs: [category.id],
+      );
+    } catch (e) {
+      throw DatabaseException('Error al actualizar categoría: $e');
+    }
+  }
+
   /// Obtener todas las categorías
   @override
   Future<List<model.Category>> getAllCategories() async {
