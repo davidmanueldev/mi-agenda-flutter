@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../controllers/task_controller.dart';
 import '../models/task.dart';
+import '../models/category.dart' as model;
 import 'add_edit_task_screen.dart';
 
 /// Pantalla de detalle de tarea
@@ -169,6 +170,24 @@ class TaskDetailScreen extends StatelessWidget {
   }
 
   Widget _buildDetailCard(BuildContext context, Task task) {
+    final controller = context.read<TaskController>();
+    
+    // Buscar el nombre de la categoría
+    String categoryName = task.category;
+    final categories = controller.categories;
+    final category = categories.firstWhere(
+      (cat) => cat.id == task.category,
+      orElse: () => model.Category(
+        id: task.category,
+        name: task.category,
+        description: '',
+        color: const Color(0xFF2196F3),
+        icon: const IconData(0xe1cb, fontFamily: 'MaterialIcons'),
+        createdAt: DateTime.now(),
+      ),
+    );
+    categoryName = category.name;
+    
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -188,7 +207,7 @@ class TaskDetailScreen extends StatelessWidget {
               context,
               icon: Icons.folder,
               label: 'Categoría',
-              value: task.category,
+              value: categoryName,
             ),
             const Divider(),
 

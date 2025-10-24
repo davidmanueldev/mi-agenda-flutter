@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../controllers/task_controller.dart';
 import '../models/task.dart';
+import '../models/category.dart' as model;
 import 'add_edit_task_screen.dart';
 import 'task_detail_screen.dart';
 
@@ -353,6 +354,24 @@ class _TaskCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final controller = context.read<TaskController>();
+    
+    // Buscar el nombre de la categoría
+    String categoryName = task.category;
+    final categories = controller.categories;
+    if (categories.isNotEmpty) {
+      final category = categories.firstWhere(
+        (cat) => cat.id == task.category,
+        orElse: () => model.Category(
+          id: task.category,
+          name: task.category,
+          description: '',
+          color: const Color(0xFF2196F3),
+          icon: const IconData(0xe1cb, fontFamily: 'MaterialIcons'),
+          createdAt: DateTime.now(),
+        ),
+      );
+      categoryName = category.name;
+    }
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -483,7 +502,7 @@ class _TaskCard extends StatelessWidget {
                   Chip(
                     avatar: const Icon(Icons.folder, size: 16),
                     label: Text(
-                      task.category,
+                      categoryName,
                       style: const TextStyle(fontSize: 12),
                     ),
                     visualDensity: VisualDensity.compact,

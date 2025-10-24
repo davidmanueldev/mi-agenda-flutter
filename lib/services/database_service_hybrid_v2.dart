@@ -104,10 +104,12 @@ class DatabaseServiceHybridV2 implements DatabaseInterface {
     // Listener para tareas
     _tasksSubscription = _firebaseService.getTasksStream().listen(
       (tasks) {
+        print('✅ TASKS LISTENER: Recibidas ${tasks.length} tareas de Firebase');
         _syncTasksToLocal(tasks);
       },
       onError: (error) {
-        print('Error en stream de tareas: $error');
+        print('❌ ERROR EN STREAM DE TAREAS: $error');
+        print('⚠️  SI VES "failed-precondition" o "requires an index", EL ÍNDICE NO ESTÁ FUNCIONANDO');
       },
     );
   }
@@ -256,11 +258,16 @@ class DatabaseServiceHybridV2 implements DatabaseInterface {
   /// Sincronizar tareas de Firebase a SQLite
   Future<void> _syncTasksToLocal(List<Task> firebaseTasks) async {
     try {
+      print('🔄 ✅ TASKS INDEX WORKING: Iniciando sincronización de tareas...');
+      print('📦 ✅ TASKS: Tareas en Firebase: ${firebaseTasks.length}');
+      
       _updateSyncStatus(SyncStatus.syncing);
       bool hasChanges = false;
       
       final localTasks = await _localService.getAllTasks();
       final localTasksMap = {for (var t in localTasks) t.id: t};
+      
+      print('📱 ✅ TASKS: Tareas locales: ${localTasks.length}');
       
       // Actualizar o insertar tareas de Firebase en SQLite
       for (final firebaseTask in firebaseTasks) {
