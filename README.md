@@ -1,6 +1,6 @@
 # Mi Agenda - Aplicación Flutter con Arquitectura MVC
 
-Una aplicación moderna de agenda personal desarrollada en Flutter siguiendo la arquitectura MVC (Modelo-Vista-Controlador) y las mejores prácticas de desarrollo de software.
+Una aplicación moderna de agenda personal desarrollada en Flutter siguiendo la arquitectura MVC (Modelo-Vista-Controlador) y utilizando una base de datos híbrida con Firebase Firestore y SQLite para garantizar funcionalidad offline y sincronización en la nube.
 
 ## 📋 Características Principales
 
@@ -95,7 +95,7 @@ lib/
 
 1. **Clonar el proyecto**
    ```bash
-   git clone [URL_DEL_REPOSITORIO]
+   git clone https://github.com/davidmanueldev/mi-agenda-flutter
    cd mi_agenda
    ```
 
@@ -249,8 +249,4 @@ Este proyecto está bajo la Licencia MIT. Ver el archivo `LICENSE` para más det
 
 ## 👨‍💻 Desarrollado por
 
-[Tu Nombre] - Especialista en Desarrollo Móvil Flutter
-
----
-
-**Nota**: Esta aplicación sigue las mejores prácticas de desarrollo Flutter y está diseñada para ser escalable, mantenible y segura.
+David Manuel - Especialista en tomar cafécito y escribir código, aveces.
