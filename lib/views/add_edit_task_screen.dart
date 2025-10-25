@@ -23,7 +23,7 @@ class _AddEditTaskScreenState extends State<AddEditTaskScreen> {
   Task? _existingTask;
   DateTime? _selectedDueDate;
   TaskPriority _selectedPriority = TaskPriority.medium;
-  String _selectedCategory = 'Personal';
+  String? _selectedCategory; // Cambiado a nullable para inicializar correctamente
   List<TaskStep> _steps = [];
   int _estimatedPomodoros = 1; // Estimación de pomodoros
   bool _isLoading = true;
@@ -36,6 +36,7 @@ class _AddEditTaskScreenState extends State<AddEditTaskScreen> {
 
   Future<void> _loadTask() async {
     if (widget.taskId != null) {
+      // Editar tarea existente
       final controller = context.read<TaskController>();
       final task = await controller.getTaskById(widget.taskId!);
 
@@ -55,12 +56,14 @@ class _AddEditTaskScreenState extends State<AddEditTaskScreen> {
         setState(() => _isLoading = false);
       }
     } else {
-      // Nueva tarea
+      // Nueva tarea: inicializar con primera categoría disponible
       final categories = context.read<TaskController>().categories;
-      if (categories.isNotEmpty) {
-        _selectedCategory = categories.first.id;
-      }
-      setState(() => _isLoading = false);
+      setState(() {
+        if (categories.isNotEmpty) {
+          _selectedCategory = categories.first.id;
+        }
+        _isLoading = false;
+      });
     }
   }
 
@@ -487,6 +490,17 @@ class _AddEditTaskScreenState extends State<AddEditTaskScreen> {
       return;
     }
 
+    // Validar que se haya seleccionado una categoría
+    if (_selectedCategory == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Por favor selecciona una categoría'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
     final controller = context.read<TaskController>();
     final userId = 'user_${DateTime.now().millisecondsSinceEpoch}'; // Temporal
 
@@ -496,7 +510,7 @@ class _AddEditTaskScreenState extends State<AddEditTaskScreen> {
       title: SecurityUtils.sanitizeInput(_titleController.text),
       description: SecurityUtils.sanitizeInput(_descriptionController.text),
       dueDate: _selectedDueDate,
-      category: _selectedCategory,
+      category: _selectedCategory!, // Ahora es seguro usar !
       priority: _selectedPriority,
       status: _existingTask?.status ?? TaskStatus.pending,
       steps: _steps,

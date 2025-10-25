@@ -39,22 +39,19 @@ class TemplatesScreen extends StatelessWidget {
 
           return RefreshIndicator(
             onRefresh: controller.refresh,
-            child: GridView.builder(
+            child: ListView.builder(
               padding: const EdgeInsets.all(16),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                crossAxisSpacing: 12,
-                mainAxisSpacing: 12,
-                childAspectRatio: 0.85,
-              ),
               itemCount: controller.templates.length,
               itemBuilder: (context, index) {
                 final template = controller.templates[index];
-                return _TemplateCard(
-                  template: template,
-                  onTap: () => _createTaskFromTemplate(context, template),
-                  onEdit: () => _showEditTemplateDialog(context, template),
-                  onDelete: () => _confirmDelete(context, template),
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: _TemplateCard(
+                    template: template,
+                    onTap: () => _createTaskFromTemplate(context, template),
+                    onEdit: () => _showEditTemplateDialog(context, template),
+                    onDelete: () => _confirmDelete(context, template),
+                  ),
                 );
               },
             ),
@@ -150,10 +147,17 @@ class TemplatesScreen extends StatelessWidget {
   void _createTaskFromTemplate(BuildContext context, TaskTemplate template) async {
     final taskController = Provider.of<TaskController>(context, listen: false);
     
+    // Obtener el userId real desde las tareas existentes
+    // Si no hay tareas, usar un userId temporal que será reemplazado por Firebase Auth
+    String userId = 'user_temp';
+    if (taskController.tasks.isNotEmpty) {
+      userId = taskController.tasks.first.userId;
+    }
+    
     // Crear tarea desde template
     final newTask = Task(
       id: SecurityUtils.generateSecureId(),
-      userId: template.userId,
+      userId: userId,
       title: template.title,
       description: template.description,
       category: template.category,
@@ -259,15 +263,32 @@ class _TemplateCard extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(12),
         child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          padding: const EdgeInsets.all(16),
+          child: Row(
             children: [
-              // Header con nombre y acciones
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
+              // Icono de plantilla
+              Container(
+                width: 50,
+                height: 50,
+                decoration: BoxDecoration(
+                  color: _getPriorityColor(template.priority).withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(
+                  Icons.insert_drive_file,
+                  color: _getPriorityColor(template.priority),
+                  size: 28,
+                ),
+              ),
+              const SizedBox(width: 16),
+              
+              // Información de la plantilla
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Nombre de plantilla
+                    Text(
                       template.name,
                       style: const TextStyle(
                         fontWeight: FontWeight.bold,
@@ -276,100 +297,111 @@ class _TemplateCard extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                  ),
-                  PopupMenuButton(
-                    icon: const Icon(Icons.more_vert, size: 20),
-                    itemBuilder: (context) => [
-                      const PopupMenuItem(
-                        value: 'edit',
-                        child: Row(
-                          children: [
-                            Icon(Icons.edit, size: 20),
-                            SizedBox(width: 8),
-                            Text('Editar'),
-                          ],
-                        ),
-                      ),
-                      const PopupMenuItem(
-                        value: 'delete',
-                        child: Row(
-                          children: [
-                            Icon(Icons.delete, size: 20, color: Colors.red),
-                            SizedBox(width: 8),
-                            Text('Eliminar', style: TextStyle(color: Colors.red)),
-                          ],
-                        ),
-                      ),
-                    ],
-                    onSelected: (value) {
-                      if (value == 'edit') {
-                        onEdit();
-                      } else if (value == 'delete') {
-                        onDelete();
-                      }
-                    },
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              
-              // Título de tarea
-              Text(
-                template.title,
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey[700],
-                ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-              const SizedBox(height: 12),
-              
-              // Categoría
-              Chip(
-                label: Text(
-                  template.category,
-                  style: const TextStyle(fontSize: 11),
-                ),
-                padding: EdgeInsets.zero,
-                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              ),
-              const SizedBox(height: 8),
-              
-              const Spacer(),
-              
-              // Footer con prioridad y pomodoros
-              Row(
-                children: [
-                  // Prioridad
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: _getPriorityColor(template.priority).withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      template.priority.displayName,
+                    const SizedBox(height: 4),
+                    
+                    // Título de tarea
+                    Text(
+                      template.title,
                       style: TextStyle(
-                        fontSize: 11,
-                        color: _getPriorityColor(template.priority),
-                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                        color: Colors.grey[600],
                       ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 8),
+                    
+                    // Footer con categoría, prioridad y pomodoros
+                    Row(
+                      children: [
+                        // Categoría
+                        Flexible(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: Colors.blue.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              template.category,
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: Colors.blue,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        
+                        // Prioridad badge
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: _getPriorityColor(template.priority).withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            template.priority.displayName,
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: _getPriorityColor(template.priority),
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        
+                        // Pomodoros
+                        Row(
+                          children: [
+                            const Icon(Icons.timer, size: 14, color: Colors.grey),
+                            const SizedBox(width: 4),
+                            Text(
+                              '${template.estimatedPomodoros}🍅',
+                              style: const TextStyle(fontSize: 12),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              
+              // Menú de acciones
+              PopupMenuButton(
+                icon: const Icon(Icons.more_vert),
+                itemBuilder: (context) => [
+                  const PopupMenuItem(
+                    value: 'edit',
+                    child: Row(
+                      children: [
+                        Icon(Icons.edit, size: 20),
+                        SizedBox(width: 8),
+                        Text('Editar'),
+                      ],
                     ),
                   ),
-                  const Spacer(),
-                  // Pomodoros
-                  Row(
-                    children: [
-                      const Icon(Icons.timer, size: 14, color: Colors.grey),
-                      const SizedBox(width: 4),
-                      Text(
-                        '${template.estimatedPomodoros}🍅',
-                        style: const TextStyle(fontSize: 12),
-                      ),
-                    ],
+                  const PopupMenuItem(
+                    value: 'delete',
+                    child: Row(
+                      children: [
+                        Icon(Icons.delete, size: 20, color: Colors.red),
+                        SizedBox(width: 8),
+                        Text('Eliminar', style: TextStyle(color: Colors.red)),
+                      ],
+                    ),
                   ),
                 ],
+                onSelected: (value) {
+                  if (value == 'edit') {
+                    onEdit();
+                  } else if (value == 'delete') {
+                    onDelete();
+                  }
+                },
               ),
             ],
           ),
@@ -409,7 +441,7 @@ class _TemplateDialogState extends State<_TemplateDialog> {
   final _descriptionController = TextEditingController();
   final _stepController = TextEditingController();
   
-  String _selectedCategory = 'Personal';
+  String? _selectedCategory; // Ahora nullable para inicializar correctamente
   TaskPriority _selectedPriority = TaskPriority.medium;
   int _estimatedPomodoros = 1;
   List<String> _steps = [];
@@ -417,6 +449,8 @@ class _TemplateDialogState extends State<_TemplateDialog> {
   @override
   void initState() {
     super.initState();
+    
+    // Si estamos editando, cargar datos de la plantilla
     if (widget.template != null) {
       _nameController.text = widget.template!.name;
       _titleController.text = widget.template!.title;
@@ -425,6 +459,12 @@ class _TemplateDialogState extends State<_TemplateDialog> {
       _selectedPriority = widget.template!.priority;
       _estimatedPomodoros = widget.template!.estimatedPomodoros;
       _steps = List.from(widget.template!.steps);
+    } else {
+      // Si es nueva plantilla, inicializar con primera categoría disponible
+      final taskController = Provider.of<TaskController>(context, listen: false);
+      if (taskController.categories.isNotEmpty) {
+        _selectedCategory = taskController.categories.first.id;
+      }
     }
   }
 
@@ -495,23 +535,57 @@ class _TemplateDialogState extends State<_TemplateDialog> {
               ),
               const SizedBox(height: 16),
               
-              // Categoría
-              DropdownButtonFormField<String>(
-                value: _selectedCategory,
-                decoration: const InputDecoration(
-                  labelText: 'Categoría',
-                  prefixIcon: Icon(Icons.category),
-                ),
-                items: ['Personal', 'Trabajo', 'Estudio', 'Salud', 'Social']
-                    .map((cat) => DropdownMenuItem(
-                          value: cat,
-                          child: Text(cat),
-                        ))
-                    .toList(),
-                onChanged: (value) {
-                  setState(() {
-                    _selectedCategory = value!;
-                  });
+              // Categoría - Ahora usa Consumer para obtener categorías reales
+              Consumer<TaskController>(
+                builder: (context, controller, child) {
+                  final categories = controller.categories;
+                  
+                  if (categories.isEmpty) {
+                    return const Card(
+                      child: Padding(
+                        padding: EdgeInsets.all(16),
+                        child: Text(
+                          'No hay categorías disponibles. Crea una primero.',
+                          style: TextStyle(color: Colors.orange),
+                        ),
+                      ),
+                    );
+                  }
+                  
+                  return DropdownButtonFormField<String>(
+                    value: _selectedCategory,
+                    decoration: const InputDecoration(
+                      labelText: 'Categoría',
+                      prefixIcon: Icon(Icons.category),
+                    ),
+                    items: categories.map((category) {
+                      return DropdownMenuItem(
+                        value: category.id,
+                        child: Row(
+                          children: [
+                            Icon(
+                              category.icon,
+                              color: category.color,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(category.name),
+                          ],
+                        ),
+                      );
+                    }).toList(),
+                    onChanged: (value) {
+                      setState(() {
+                        _selectedCategory = value;
+                      });
+                    },
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Selecciona una categoría';
+                      }
+                      return null;
+                    },
+                  );
                 },
               ),
               const SizedBox(height: 16),
@@ -649,6 +723,17 @@ class _TemplateDialogState extends State<_TemplateDialog> {
   void _saveTemplate() async {
     if (!_formKey.currentState!.validate()) return;
 
+    // Validar que se haya seleccionado una categoría
+    if (_selectedCategory == null || _selectedCategory!.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Por favor selecciona una categoría'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
     final controller = Provider.of<TemplateController>(context, listen: false);
     final isEdit = widget.template != null;
 
@@ -658,7 +743,7 @@ class _TemplateDialogState extends State<_TemplateDialog> {
       name: SecurityUtils.sanitizeInput(_nameController.text.trim()),
       title: SecurityUtils.sanitizeInput(_titleController.text.trim()),
       description: SecurityUtils.sanitizeInput(_descriptionController.text.trim()),
-      category: _selectedCategory,
+      category: _selectedCategory!, // Ahora es seguro usar ! después de la validación
       priority: _selectedPriority,
       estimatedPomodoros: _estimatedPomodoros,
       steps: _steps,

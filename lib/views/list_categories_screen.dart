@@ -66,6 +66,7 @@ class ListCategoriesScreen extends StatelessWidget {
         },
       ),
       floatingActionButton: FloatingActionButton.extended(
+        heroTag: 'categories_fab', // Tag único para evitar conflictos de Hero
         onPressed: () => _showCreateCategoryDialog(context),
         icon: const Icon(Icons.add),
         label: const Text('Nueva Categoría'),

@@ -99,6 +99,7 @@ class _TaskListScreenState extends State<TaskListScreen> {
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
+        heroTag: 'task_list_fab', // Tag único para evitar conflictos de Hero
         onPressed: () => _navigateToAddTask(context),
         icon: const Icon(Icons.add),
         label: const Text('Nueva Tarea'),

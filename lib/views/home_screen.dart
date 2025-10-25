@@ -101,6 +101,7 @@ class _HomeScreenState extends State<HomeScreen> {
         },
       ),
       floatingActionButton: FloatingActionButton(
+        heroTag: 'home_fab', // Tag único para evitar conflictos de Hero
         onPressed: () => _navigateToAddEvent(),
         tooltip: 'Agregar evento',
         child: const Icon(Icons.add),
