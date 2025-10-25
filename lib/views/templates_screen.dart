@@ -145,6 +145,10 @@ class TemplatesScreen extends StatelessWidget {
   }
 
   void _createTaskFromTemplate(BuildContext context, TaskTemplate template) async {
+    // Guardar referencia al ScaffoldMessenger ANTES de operaciones async
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+    
     final taskController = Provider.of<TaskController>(context, listen: false);
     
     // Obtener el userId real desde las tareas existentes
@@ -176,10 +180,8 @@ class TemplatesScreen extends StatelessWidget {
 
     final success = await taskController.createTask(newTask);
     
-    if (!context.mounted) return;
-    
     if (success) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      scaffoldMessenger.showSnackBar(
         SnackBar(
           content: Text('Tarea creada desde "${template.name}"'),
           backgroundColor: Colors.green,
@@ -187,14 +189,14 @@ class TemplatesScreen extends StatelessWidget {
             label: 'Ver',
             textColor: Colors.white,
             onPressed: () {
-              Navigator.pop(context); // Volver a la pantalla anterior
+              navigator.pop(); // Volver a la pantalla anterior
             },
           ),
         ),
       );
-      Navigator.pop(context); // Cerrar pantalla de templates
+      navigator.pop(); // Cerrar pantalla de templates
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
+      scaffoldMessenger.showSnackBar(
         const SnackBar(
           content: Text('Error al crear tarea desde plantilla'),
           backgroundColor: Colors.red,

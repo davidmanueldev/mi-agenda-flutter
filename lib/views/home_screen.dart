@@ -12,6 +12,7 @@ import 'list_categories_screen.dart';
 import 'task_list_screen.dart';
 import 'pomodoro_screen.dart';
 import 'pomodoro_history_screen.dart';
+import 'reports_screen.dart';
 import '../widgets/event_card.dart';
 import '../widgets/custom_app_bar.dart';
 
@@ -596,6 +597,19 @@ class _HomeScreenState extends State<HomeScreen> {
                 context,
                 MaterialPageRoute(
                   builder: (context) => const PomodoroHistoryScreen(),
+                ),
+              );
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.bar_chart),
+            title: const Text('Reportes'),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const ReportsScreen(),
                 ),
               );
             },

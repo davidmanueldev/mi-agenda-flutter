@@ -43,6 +43,9 @@ dependencies:
   
   # Zona horaria para notificaciones
   timezone: ^0.9.4
+  
+  # Gráficas y visualización de datos
+  fl_chart: ^0.69.0
 
 dev_dependencies:
   flutter_test:
