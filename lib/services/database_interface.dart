@@ -2,6 +2,7 @@ import '../models/event.dart';
 import '../models/category.dart' as model;
 import '../models/task.dart';
 import '../models/pomodoro_session.dart';
+import '../models/task_template.dart';
 
 /// Interfaz común para servicios de base de datos
 /// Permite intercambiar entre SQLite, Firebase, o implementaciones híbridas
@@ -113,6 +114,23 @@ abstract class DatabaseInterface {
   
   /// Obtener estadísticas de Pomodoro
   Future<Map<String, dynamic>> getPomodoroStats();
+  
+  // ==================== OPERACIONES DE TEMPLATES ====================
+  
+  /// Insertar un nuevo template
+  Future<int> insertTaskTemplate(TaskTemplate template);
+  
+  /// Actualizar un template existente
+  Future<int> updateTaskTemplate(TaskTemplate template);
+  
+  /// Eliminar un template
+  Future<int> deleteTaskTemplate(String templateId);
+  
+  /// Obtener todos los templates
+  Future<List<TaskTemplate>> getAllTaskTemplates();
+  
+  /// Obtener template por ID
+  Future<TaskTemplate?> getTaskTemplateById(String id);
   
   // ==================== OPERACIONES DE MANTENIMIENTO ====================
   

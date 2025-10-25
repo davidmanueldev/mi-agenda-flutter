@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../controllers/task_controller.dart';
 import '../controllers/pomodoro_controller.dart';
+import '../controllers/template_controller.dart';
 import '../models/task.dart';
+import '../models/task_template.dart';
 import '../models/category.dart' as model;
+import '../utils/security_utils.dart';
 import 'add_edit_task_screen.dart';
 import 'pomodoro_screen.dart';
 
@@ -19,6 +22,11 @@ class TaskDetailScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Detalle de Tarea'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.save_alt),
+            tooltip: 'Guardar como Plantilla',
+            onPressed: () => _saveAsTemplate(context),
+          ),
           IconButton(
             icon: const Icon(Icons.edit),
             onPressed: () => _navigateToEdit(context),
@@ -634,7 +642,7 @@ class TaskDetailScreen extends StatelessWidget {
     );
   }
 
-  /// Iniciar Pomodoro vinculado a esta tarea
+    /// Iniciar Pomodoro vinculado a esta tarea
   void _startPomodoroForTask(BuildContext context, Task task) {
     final pomodoroController = context.read<PomodoroController>();
     
@@ -649,10 +657,101 @@ class TaskDetailScreen extends StatelessWidget {
     
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('Pomodoro vinculado a: ${task.title}'),
-        backgroundColor: Colors.red,
-        duration: const Duration(seconds: 2),
+        content: Text('Tarea "${task.title}" vinculada al Pomodoro'),
+        backgroundColor: Colors.green,
       ),
+    );
+  }
+
+  /// Guardar tarea como plantilla
+  void _saveAsTemplate(BuildContext context) {
+    final taskController = context.read<TaskController>();
+    final task = taskController.getTaskById(taskId);
+    
+    if (task == null) return;
+
+    // Mostrar diálogo para ingresar nombre de plantilla
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        final nameController = TextEditingController();
+        return AlertDialog(
+          title: const Text('Guardar como Plantilla'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Esta configuración de tarea se guardará para uso futuro.',
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: nameController,
+                decoration: const InputDecoration(
+                  labelText: 'Nombre de Plantilla *',
+                  hintText: 'Ej: Reunión Semanal',
+                  border: OutlineInputBorder(),
+                ),
+                autofocus: true,
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancelar'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                final templateName = nameController.text.trim();
+                if (templateName.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('El nombre es requerido'),
+                      backgroundColor: Colors.orange,
+                    ),
+                  );
+                  return;
+                }
+
+                Navigator.pop(dialogContext); // Cerrar diálogo
+
+                final templateController = context.read<TemplateController>();
+                
+                // Crear plantilla desde tarea
+                final template = TaskTemplate(
+                  id: SecurityUtils.generateSecureId(),
+                  userId: task.userId,
+                  name: SecurityUtils.sanitizeInput(templateName),
+                  title: task.title,
+                  description: task.description,
+                  category: task.category,
+                  priority: task.priority,
+                  estimatedPomodoros: task.estimatedPomodoros,
+                  steps: task.steps.map((step) => step.title).toList(),
+                  createdAt: DateTime.now(),
+                  updatedAt: DateTime.now(),
+                );
+
+                final success = await templateController.createTemplate(template);
+
+                if (!context.mounted) return;
+
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      success
+                          ? 'Plantilla "$templateName" creada'
+                          : 'Error al crear plantilla',
+                    ),
+                    backgroundColor: success ? Colors.green : Colors.red,
+                  ),
+                );
+              },
+              child: const Text('Guardar'),
+            ),
+          ],
+        );
+      },
     );
   }
 }

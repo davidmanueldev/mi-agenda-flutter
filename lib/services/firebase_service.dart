@@ -5,6 +5,7 @@ import '../models/event.dart';
 import '../models/category.dart' as model;
 import '../models/task.dart';
 import '../models/pomodoro_session.dart';
+import '../models/task_template.dart';
 import '../firebase_options.dart';
 
 /// Servicio Firebase para gestión de datos en la nube
@@ -23,6 +24,7 @@ class FirebaseService {
   final CollectionReference _categoriesCollection = FirebaseFirestore.instance.collection('categories');
   final CollectionReference _tasksCollection = FirebaseFirestore.instance.collection('tasks');
   final CollectionReference _pomodoroCollection = FirebaseFirestore.instance.collection('pomodoro_sessions');
+  final CollectionReference _templatesCollection = FirebaseFirestore.instance.collection('task_templates');
   
   // Instancia de Firebase Auth
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -829,6 +831,90 @@ class FirebaseService {
     } catch (e) {
       throw FirebaseServiceException('Error al obtener estadísticas Pomodoro: $e');
     }
+  }
+  
+  // ==================== OPERACIONES DE TASK TEMPLATES ====================
+  
+  /// Crear un nuevo template
+  Future<void> createTaskTemplate(TaskTemplate template) async {
+    await _ensureAuthenticated();
+    
+    try {
+      await _templatesCollection.doc(template.id).set(template.toJson());
+      print('✅ Template creado en Firebase: ${template.name}');
+    } catch (e) {
+      throw FirebaseServiceException('Error al crear template: $e');
+    }
+  }
+  
+  /// Actualizar un template existente
+  Future<void> updateTaskTemplate(TaskTemplate template) async {
+    await _ensureAuthenticated();
+    
+    try {
+      await _templatesCollection.doc(template.id).update(template.toJson());
+      print('🔄 Template actualizado en Firebase: ${template.name}');
+    } catch (e) {
+      throw FirebaseServiceException('Error al actualizar template: $e');
+    }
+  }
+  
+  /// Eliminar un template
+  Future<void> deleteTaskTemplate(String templateId) async {
+    await _ensureAuthenticated();
+    
+    try {
+      await _templatesCollection.doc(templateId).delete();
+      print('🗑️ Template eliminado de Firebase: $templateId');
+    } catch (e) {
+      throw FirebaseServiceException('Error al eliminar template: $e');
+    }
+  }
+  
+  /// Obtener todos los templates del usuario
+  Future<List<TaskTemplate>> getAllTaskTemplates() async {
+    await _ensureAuthenticated();
+    
+    try {
+      final userId = currentUserId;
+      final QuerySnapshot snapshot = await _templatesCollection
+          .where('userId', isEqualTo: userId)
+          .orderBy('createdAt', descending: true)
+          .get();
+      
+      return snapshot.docs
+          .map((doc) => TaskTemplate.fromJson(doc.data() as Map<String, dynamic>))
+          .toList();
+    } catch (e) {
+      throw FirebaseServiceException('Error al obtener templates: $e');
+    }
+  }
+  
+  /// Obtener template por ID
+  Future<TaskTemplate?> getTaskTemplateById(String id) async {
+    await _ensureAuthenticated();
+    
+    try {
+      final doc = await _templatesCollection.doc(id).get();
+      
+      if (!doc.exists) return null;
+      return TaskTemplate.fromJson(doc.data() as Map<String, dynamic>);
+    } catch (e) {
+      throw FirebaseServiceException('Error al obtener template: $e');
+    }
+  }
+  
+  /// Stream de templates en tiempo real
+  Stream<List<TaskTemplate>> getTaskTemplatesStream() {
+    final userId = currentUserId;
+    
+    return _templatesCollection
+        .where('userId', isEqualTo: userId)
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .map((snapshot) => snapshot.docs
+            .map((doc) => TaskTemplate.fromJson(doc.data() as Map<String, dynamic>))
+            .toList());
   }
 }
 

@@ -1,8 +1,10 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import '../models/event.dart';
 import '../models/category.dart' as model;
 import '../models/task.dart';
 import '../models/pomodoro_session.dart';
+import '../models/task_template.dart';
 import 'firebase_service.dart';
 import 'database_service.dart';
 import 'database_interface.dart';
@@ -33,6 +35,7 @@ class DatabaseServiceHybridV2 implements DatabaseInterface {
   StreamSubscription? _categoriesSubscription;
   StreamSubscription? _tasksSubscription;
   StreamSubscription? _pomodoroSubscription;
+  StreamSubscription? _templatesSubscription;
   
   bool _isOnline = false;
   bool _isSyncing = false;
@@ -998,6 +1001,97 @@ class DatabaseServiceHybridV2 implements DatabaseInterface {
   @override
   Future<Map<String, dynamic>> getPomodoroStats() async {
     return await _localService.getPomodoroStats();
+  }
+  
+  // ==================== OPERACIONES DE TEMPLATES ====================
+  
+  @override
+  Future<int> insertTaskTemplate(TaskTemplate template) async {
+    // Guardar localmente primero
+    final result = await _localService.insertTaskTemplate(template);
+    
+    // Intentar sincronizar con Firebase si estamos online
+    if (_isOnline) {
+      try {
+        await _firebaseService.createTaskTemplate(template);
+        debugPrint('✅ Template sincronizado con Firebase: ${template.name}');
+      } catch (e) {
+        debugPrint('⚠️ Error al sincronizar template con Firebase: $e');
+        // Agregar a cola de sincronización
+        await _syncQueue.addToQueue(
+          SyncOperation.createTask, // Reutilizamos esta operación
+          template.toJson(),
+        );
+      }
+    } else {
+      // Si estamos offline, agregar a la cola
+      await _syncQueue.addToQueue(
+        SyncOperation.createTask,
+        template.toJson(),
+      );
+    }
+    
+    return result;
+  }
+  
+  @override
+  Future<int> updateTaskTemplate(TaskTemplate template) async {
+    final result = await _localService.updateTaskTemplate(template);
+    
+    if (_isOnline) {
+      try {
+        await _firebaseService.updateTaskTemplate(template);
+        debugPrint('✅ Template actualizado en Firebase: ${template.name}');
+      } catch (e) {
+        debugPrint('⚠️ Error al actualizar template en Firebase: $e');
+        await _syncQueue.addToQueue(
+          SyncOperation.updateTask,
+          template.toJson(),
+        );
+      }
+    } else {
+      await _syncQueue.addToQueue(
+        SyncOperation.updateTask,
+        template.toJson(),
+      );
+    }
+    
+    return result;
+  }
+  
+  @override
+  Future<int> deleteTaskTemplate(String templateId) async {
+    final result = await _localService.deleteTaskTemplate(templateId);
+    
+    if (_isOnline) {
+      try {
+        await _firebaseService.deleteTaskTemplate(templateId);
+        debugPrint('✅ Template eliminado de Firebase: $templateId');
+      } catch (e) {
+        debugPrint('⚠️ Error al eliminar template de Firebase: $e');
+        await _syncQueue.addToQueue(
+          SyncOperation.deleteTask,
+          {'id': templateId},
+        );
+      }
+    } else {
+      await _syncQueue.addToQueue(
+        SyncOperation.deleteTask,
+        {'id': templateId},
+      );
+    }
+    
+    return result;
+  }
+  
+  @override
+  Future<List<TaskTemplate>> getAllTaskTemplates() async {
+    return await _localService.getAllTaskTemplates();
+  }
+  
+  @override
+  Future<TaskTemplate?> getTaskTemplateById(String id) async {
+    return await _localService.getTaskTemplateById(id);
   }
   
   /// Obtener estado de sincronización

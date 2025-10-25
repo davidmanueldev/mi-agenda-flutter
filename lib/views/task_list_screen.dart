@@ -5,6 +5,7 @@ import '../models/task.dart';
 import '../models/category.dart' as model;
 import 'add_edit_task_screen.dart';
 import 'task_detail_screen.dart';
+import 'templates_screen.dart';
 
 /// Pantalla de lista de tareas
 class TaskListScreen extends StatefulWidget {
@@ -29,6 +30,19 @@ class _TaskListScreenState extends State<TaskListScreen> {
       appBar: AppBar(
         title: const Text('Mis Tareas'),
         actions: [
+          // Botón de plantillas
+          IconButton(
+            icon: const Icon(Icons.insert_drive_file_outlined),
+            tooltip: 'Plantillas',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const TemplatesScreen(),
+                ),
+              );
+            },
+          ),
           // Botón de filtros
           Consumer<TaskController>(
             builder: (context, controller, child) {

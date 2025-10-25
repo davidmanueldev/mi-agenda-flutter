@@ -4,6 +4,7 @@ import 'controllers/event_controller.dart';
 import 'controllers/task_controller.dart';
 import 'controllers/category_controller.dart';
 import 'controllers/pomodoro_controller.dart';
+import 'controllers/template_controller.dart';
 import 'services/database_service.dart';
 import 'services/database_service_hybrid_v2.dart';
 import 'services/firebase_service.dart';
@@ -83,6 +84,12 @@ class MiAgendaApp extends StatelessWidget {
           create: (context) => PomodoroController(
             databaseService: DatabaseServiceHybridV2(),
             notificationService: NotificationService(),
+          ),
+        ),
+        // Provider para el controlador de Templates
+        ChangeNotifierProvider(
+          create: (context) => TemplateController(
+            databaseService: DatabaseServiceHybridV2(),
           ),
         ),
       ],

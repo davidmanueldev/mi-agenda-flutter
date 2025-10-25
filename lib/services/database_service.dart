@@ -4,6 +4,7 @@ import '../models/event.dart';
 import '../models/category.dart' as model;
 import '../models/task.dart';
 import '../models/pomodoro_session.dart';
+import '../models/task_template.dart';
 import 'database_interface.dart';
 
 /// Servicio de base de datos para la gestión de persistencia
@@ -31,7 +32,7 @@ class DatabaseService implements DatabaseInterface {
 
     return await openDatabase(
       path,
-      version: 5, // Versión 5: Campos de Pomodoro en tareas
+      version: 6, // Versión 6: Tabla de task_templates
       onCreate: _createTables,
       onUpgrade: _upgradeDatabase,
     );
@@ -122,6 +123,26 @@ class DatabaseService implements DatabaseInterface {
     await db.execute('CREATE INDEX idx_pomodoro_startTime ON pomodoro_sessions(startTime)');
     await db.execute('CREATE INDEX idx_pomodoro_userId ON pomodoro_sessions(userId)');
     await db.execute('CREATE INDEX idx_pomodoro_taskId ON pomodoro_sessions(taskId)');
+    
+    // Tabla de templates de tareas (v6)
+    await db.execute('''
+      CREATE TABLE task_templates (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        title TEXT NOT NULL,
+        description TEXT,
+        category TEXT NOT NULL,
+        priority TEXT NOT NULL,
+        estimated_pomodoros INTEGER NOT NULL DEFAULT 1,
+        steps TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      )
+    ''');
+    
+    // Índice para optimizar consultas de templates
+    await db.execute('CREATE INDEX idx_templates_userId ON task_templates(user_id)');
   }
 
   /// Manejo de actualizaciones de esquema de base de datos
@@ -277,6 +298,27 @@ class DatabaseService implements DatabaseInterface {
       if (!columnNames.contains('completedPomodoros')) {
         await db.execute('ALTER TABLE tasks ADD COLUMN completedPomodoros INTEGER NOT NULL DEFAULT 0');
       }
+    }
+    
+    // Migración de versión 5 a 6: Agregar tabla de templates
+    if (oldVersion < 6) {
+      await db.execute('''
+        CREATE TABLE task_templates (
+          id TEXT PRIMARY KEY,
+          user_id TEXT NOT NULL,
+          name TEXT NOT NULL,
+          title TEXT NOT NULL,
+          description TEXT,
+          category TEXT NOT NULL,
+          priority TEXT NOT NULL,
+          estimated_pomodoros INTEGER NOT NULL DEFAULT 1,
+          steps TEXT,
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL
+        )
+      ''');
+      
+      await db.execute('CREATE INDEX idx_templates_userId ON task_templates(user_id)');
     }
   }
 
@@ -1037,6 +1079,83 @@ class DatabaseService implements DatabaseInterface {
       };
     } catch (e) {
       throw DatabaseException('Error al obtener estadísticas Pomodoro: $e');
+    }
+  }
+  
+  // ==================== OPERACIONES DE TASK TEMPLATES ====================
+  
+  /// Insertar un nuevo template
+  @override
+  Future<int> insertTaskTemplate(TaskTemplate template) async {
+    try {
+      final db = await database;
+      return await db.insert('task_templates', template.toMap());
+    } catch (e) {
+      throw DatabaseException('Error al insertar template: $e');
+    }
+  }
+  
+  /// Actualizar un template existente
+  @override
+  Future<int> updateTaskTemplate(TaskTemplate template) async {
+    try {
+      final db = await database;
+      return await db.update(
+        'task_templates',
+        template.toMap(),
+        where: 'id = ?',
+        whereArgs: [template.id],
+      );
+    } catch (e) {
+      throw DatabaseException('Error al actualizar template: $e');
+    }
+  }
+  
+  /// Eliminar un template
+  @override
+  Future<int> deleteTaskTemplate(String templateId) async {
+    try {
+      final db = await database;
+      return await db.delete(
+        'task_templates',
+        where: 'id = ?',
+        whereArgs: [templateId],
+      );
+    } catch (e) {
+      throw DatabaseException('Error al eliminar template: $e');
+    }
+  }
+  
+  /// Obtener todos los templates
+  @override
+  Future<List<TaskTemplate>> getAllTaskTemplates() async {
+    try {
+      final db = await database;
+      final List<Map<String, dynamic>> maps = await db.query(
+        'task_templates',
+        orderBy: 'created_at DESC',
+      );
+      return maps.map((map) => TaskTemplate.fromMap(map)).toList();
+    } catch (e) {
+      throw DatabaseException('Error al obtener templates: $e');
+    }
+  }
+  
+  /// Obtener template por ID
+  @override
+  Future<TaskTemplate?> getTaskTemplateById(String id) async {
+    try {
+      final db = await database;
+      final List<Map<String, dynamic>> maps = await db.query(
+        'task_templates',
+        where: 'id = ?',
+        whereArgs: [id],
+      );
+      
+      if (maps.isEmpty) return null;
+      return TaskTemplate.fromMap(maps.first);
+    } catch (e) {
+      throw DatabaseException('Error al obtener template: $e');
     }
   }
 }
