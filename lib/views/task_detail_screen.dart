@@ -29,14 +29,9 @@ class TaskDetailScreen extends StatelessWidget {
           ),
         ],
       ),
-      body: FutureBuilder<Task?>(
-        future: context.read<TaskController>().getTaskById(taskId),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          final task = snapshot.data;
+      body: Consumer<TaskController>(
+        builder: (context, controller, child) {
+          final task = controller.getTaskById(taskId);
 
           if (task == null) {
             return Center(
@@ -263,6 +258,53 @@ class TaskDetailScreen extends StatelessWidget {
                     color: Colors.grey[600],
                   ),
             ),
+            
+            // Tiempo estimado de finalización
+            if (task.estimatedFinishTime != null) ...[
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.blue.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.blue.shade200),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.schedule,
+                      color: Colors.blue.shade700,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Finalización estimada',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey[600],
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            _formatFinishTime(task.estimatedFinishTime!),
+                            style: TextStyle(
+                              fontSize: 16,
+                              color: Colors.blue.shade700,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             const Divider(),
 
             // Creación
@@ -499,6 +541,52 @@ class TaskDetailScreen extends StatelessWidget {
     final minute = date.minute.toString().padLeft(2, '0');
 
     return '${date.day} ${months[date.month - 1]} ${date.year} - $hour:$minute';
+  }
+
+  String _formatFinishTime(DateTime finishTime) {
+    final now = DateTime.now();
+    final difference = finishTime.difference(now);
+    
+    // Si es hoy
+    if (finishTime.day == now.day && 
+        finishTime.month == now.month && 
+        finishTime.year == now.year) {
+      final hour = finishTime.hour.toString().padLeft(2, '0');
+      final minute = finishTime.minute.toString().padLeft(2, '0');
+      
+      // Calcular tiempo relativo
+      final hours = difference.inHours;
+      final minutes = difference.inMinutes % 60;
+      
+      String relative = '';
+      if (hours > 0) {
+        relative = 'en ${hours}h ${minutes}min';
+      } else {
+        relative = 'en ${minutes}min';
+      }
+      
+      return 'Hoy a las $hour:$minute ($relative)';
+    }
+    
+    // Si es mañana
+    final tomorrow = DateTime(now.year, now.month, now.day + 1);
+    if (finishTime.day == tomorrow.day && 
+        finishTime.month == tomorrow.month && 
+        finishTime.year == tomorrow.year) {
+      final hour = finishTime.hour.toString().padLeft(2, '0');
+      final minute = finishTime.minute.toString().padLeft(2, '0');
+      return 'Mañana a las $hour:$minute';
+    }
+    
+    // Cualquier otra fecha
+    final months = [
+      'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun',
+      'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'
+    ];
+    final hour = finishTime.hour.toString().padLeft(2, '0');
+    final minute = finishTime.minute.toString().padLeft(2, '0');
+    
+    return '${finishTime.day} ${months[finishTime.month - 1]} a las $hour:$minute';
   }
 
   void _navigateToEdit(BuildContext context) {

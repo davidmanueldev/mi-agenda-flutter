@@ -568,6 +568,29 @@ class _TaskCard extends StatelessWidget {
                     backgroundColor: Colors.red[50],
                     valueColor: const AlwaysStoppedAnimation<Color>(Colors.red),
                   ),
+                  
+                  // Tiempo estimado de finalización
+                  if (task.estimatedFinishTime != null && task.status == TaskStatus.pending) ...[
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.schedule,
+                          size: 14,
+                          color: Colors.blue.shade700,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Finish by: ${_formatFinishTime(task.estimatedFinishTime!)}',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.blue.shade700,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ],
               ),
             ],
@@ -601,6 +624,34 @@ class _TaskCard extends StatelessWidget {
     if (diff <= 7) return 'En ${diff}d';
 
     return '${date.day}/${date.month}/${date.year}';
+  }
+
+  String _formatFinishTime(DateTime finishTime) {
+    final now = DateTime.now();
+    
+    // Si es hoy
+    if (finishTime.day == now.day && 
+        finishTime.month == now.month && 
+        finishTime.year == now.year) {
+      final hour = finishTime.hour.toString().padLeft(2, '0');
+      final minute = finishTime.minute.toString().padLeft(2, '0');
+      return '$hour:$minute';
+    }
+    
+    // Si es mañana
+    final tomorrow = DateTime(now.year, now.month, now.day + 1);
+    if (finishTime.day == tomorrow.day && 
+        finishTime.month == tomorrow.month && 
+        finishTime.year == tomorrow.year) {
+      final hour = finishTime.hour.toString().padLeft(2, '0');
+      final minute = finishTime.minute.toString().padLeft(2, '0');
+      return 'Mañana $hour:$minute';
+    }
+    
+    // Cualquier otra fecha
+    final hour = finishTime.hour.toString().padLeft(2, '0');
+    final minute = finishTime.minute.toString().padLeft(2, '0');
+    return '${finishTime.day}/${finishTime.month} $hour:$minute';
   }
 
   void _navigateToDetail(BuildContext context) {

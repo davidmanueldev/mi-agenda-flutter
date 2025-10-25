@@ -44,6 +44,9 @@ class PomodoroScreen extends StatelessWidget {
               // Indicador de tipo de sesión
               _buildSessionTypeIndicator(context, controller),
               
+              // Tareas de hoy (sugerencias)
+              _buildTodayTasksSuggestion(context, controller),
+              
               // Selector de tarea vinculada
               _buildTaskSelector(context, controller),
               
@@ -121,6 +124,189 @@ class PomodoroScreen extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  /// Sugerencias de tareas que vencen hoy
+  Widget _buildTodayTasksSuggestion(BuildContext context, PomodoroController pomodoroController) {
+    return Consumer<TaskController>(
+      builder: (context, taskController, child) {
+        final todayTasks = taskController.getTodaysTasks();
+        
+        // No mostrar nada si no hay tareas de hoy
+        if (todayTasks.isEmpty) return const SizedBox.shrink();
+        
+        // No mostrar si ya hay una tarea vinculada de hoy
+        if (pomodoroController.linkedTaskId != null) {
+          final linkedTask = taskController.getTaskById(pomodoroController.linkedTaskId!);
+          if (linkedTask != null && todayTasks.any((t) => t.id == linkedTask.id)) {
+            return const SizedBox.shrink();
+          }
+        }
+        
+        return Container(
+          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                Colors.orange.shade50,
+                Colors.amber.shade50,
+              ],
+            ),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.orange.shade300, width: 2),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.today, color: Colors.orange.shade700, size: 20),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Tareas de Hoy',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.orange.shade900,
+                    ),
+                  ),
+                  const Spacer(),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.shade700,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      '${todayTasks.length}',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                height: 80,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: todayTasks.length,
+                  itemBuilder: (context, index) {
+                    final task = todayTasks[index];
+                    return _buildTodayTaskCard(context, task, pomodoroController);
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  /// Card individual de tarea de hoy
+  Widget _buildTodayTaskCard(BuildContext context, Task task, PomodoroController pomodoroController) {
+    // Color según prioridad
+    Color priorityColor;
+    switch (task.priority) {
+      case TaskPriority.urgent:
+        priorityColor = Colors.red;
+        break;
+      case TaskPriority.high:
+        priorityColor = Colors.orange;
+        break;
+      case TaskPriority.medium:
+        priorityColor = Colors.blue;
+        break;
+      case TaskPriority.low:
+        priorityColor = Colors.grey;
+        break;
+    }
+    
+    return GestureDetector(
+      onTap: () {
+        // Vincular tarea y mostrar confirmación
+        pomodoroController.linkTask(task.id);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('✅ Vinculada: ${task.title}'),
+            duration: const Duration(seconds: 2),
+            backgroundColor: Colors.green,
+          ),
+        );
+      },
+      child: Container(
+        width: 200,
+        margin: const EdgeInsets.only(right: 12),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: priorityColor, width: 2),
+          boxShadow: [
+            BoxShadow(
+              color: priorityColor.withOpacity(0.2),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            // Título
+            Text(
+              task.title,
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 14,
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+            
+            // Información
+            Row(
+              children: [
+                // Prioridad
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: priorityColor.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    task.priority.displayName,
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: priorityColor,
+                    ),
+                  ),
+                ),
+                const Spacer(),
+                // Pomodoros
+                Icon(Icons.timer, size: 12, color: Colors.grey[600]),
+                const SizedBox(width: 2),
+                Text(
+                  '${task.remainingPomodoros}🍅',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey[600],
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

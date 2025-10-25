@@ -216,13 +216,45 @@ class TaskController with ChangeNotifier {
   }
   
   /// Obtener tarea por ID
-  Future<Task?> getTaskById(String id) async {
+  Task? getTaskById(String taskId) {
     try {
-      return await _database.getTaskById(id);
+      return _tasks.firstWhere((task) => task.id == taskId);
     } catch (e) {
-      _setError('Error al obtener tarea: $e');
       return null;
     }
+  }
+  
+  /// Obtener tareas pendientes que vencen hoy
+  /// Útil para sugerencias en PomodoroScreen
+  List<Task> getTodaysTasks() {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final tomorrow = today.add(const Duration(days: 1));
+    
+    return _tasks.where((task) {
+      // Solo tareas pendientes
+      if (task.status != TaskStatus.pending) return false;
+      
+      // Filtrar por fecha de vencimiento == HOY
+      if (task.dueDate == null) return false;
+      
+      final dueDate = DateTime(
+        task.dueDate!.year,
+        task.dueDate!.month,
+        task.dueDate!.day,
+      );
+      
+      return dueDate.isAtSameMomentAs(today) || 
+             (dueDate.isBefore(tomorrow) && dueDate.isAfter(today.subtract(const Duration(days: 1))));
+    }).toList()
+      ..sort((a, b) {
+        // Ordenar por prioridad (urgente primero)
+        final priorityCompare = b.priority.value.compareTo(a.priority.value);
+        if (priorityCompare != 0) return priorityCompare;
+        
+        // Luego por pomodoros estimados (menos pomodoros primero = quick wins)
+        return a.estimatedPomodoros.compareTo(b.estimatedPomodoros);
+      });
   }
   
   /// Marcar tarea como completada

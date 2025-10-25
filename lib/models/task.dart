@@ -182,6 +182,20 @@ class Task {
   
   /// Tiempo restante en minutos
   int get remainingMinutes => remainingPomodoros * 25;
+  
+  /// Hora estimada de finalización
+  /// Calcula: now + (remainingPomodoros * 25min) + descansos (5min cada 25min)
+  DateTime? get estimatedFinishTime {
+    if (remainingPomodoros == 0) return null;
+    
+    // Calcular tiempo total incluyendo descansos
+    // Por cada pomodoro de 25min, agregar 5min de descanso (excepto el último)
+    final workMinutes = remainingPomodoros * 25;
+    final breakMinutes = (remainingPomodoros - 1) * 5; // No descanso después del último
+    final totalMinutes = workMinutes + breakMinutes;
+    
+    return DateTime.now().add(Duration(minutes: totalMinutes));
+  }
 
   /// Copiar con modificaciones
   Task copyWith({
