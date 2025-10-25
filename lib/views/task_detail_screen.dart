@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../controllers/task_controller.dart';
+import '../controllers/pomodoro_controller.dart';
 import '../models/task.dart';
 import '../models/category.dart' as model;
 import 'add_edit_task_screen.dart';
+import 'pomodoro_screen.dart';
 
 /// Pantalla de detalle de tarea
 class TaskDetailScreen extends StatelessWidget {
@@ -223,12 +225,12 @@ class TaskDetailScreen extends StatelessWidget {
             ),
             const Divider(),
 
-            // Progreso
+            // Progreso de subtareas
             if (task.steps.isNotEmpty) ...[
               _buildDetailRow(
                 context,
                 icon: Icons.trending_up,
-                label: 'Progreso',
+                label: 'Progreso de pasos',
                 value: '${(task.progress * 100).toInt()}%',
               ),
               const SizedBox(height: 8),
@@ -239,6 +241,29 @@ class TaskDetailScreen extends StatelessWidget {
               ),
               const Divider(),
             ],
+
+            // Progreso de Pomodoros
+            _buildDetailRow(
+              context,
+              icon: Icons.timer,
+              label: 'Pomodoros',
+              value: '${task.completedPomodoros}/${task.estimatedPomodoros} 🍅',
+            ),
+            const SizedBox(height: 8),
+            LinearProgressIndicator(
+              value: task.pomodoroProgress,
+              backgroundColor: Colors.red[50],
+              valueColor: const AlwaysStoppedAnimation<Color>(Colors.red),
+              minHeight: 8,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              '${task.remainingPomodoros} restantes (≈ ${task.remainingMinutes} min)',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Colors.grey[600],
+                  ),
+            ),
+            const Divider(),
 
             // Creación
             _buildDetailRow(
@@ -375,6 +400,22 @@ class TaskDetailScreen extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        // Botón de Iniciar Pomodoro
+        FilledButton.icon(
+          onPressed: () => _startPomodoroForTask(context, task),
+          icon: const Icon(Icons.timer),
+          label: Text(
+            task.remainingPomodoros > 0
+                ? 'Iniciar Pomodoro (${task.remainingPomodoros} restantes)'
+                : 'Iniciar Pomodoro',
+          ),
+          style: FilledButton.styleFrom(
+            backgroundColor: Colors.red,
+            padding: const EdgeInsets.all(16),
+          ),
+        ),
+        const SizedBox(height: 12),
+        
         if (task.status == TaskStatus.pending) ...[
           FilledButton.icon(
             onPressed: () async {
@@ -501,6 +542,28 @@ class TaskDetailScreen extends StatelessWidget {
             child: const Text('Eliminar'),
           ),
         ],
+      ),
+    );
+  }
+
+  /// Iniciar Pomodoro vinculado a esta tarea
+  void _startPomodoroForTask(BuildContext context, Task task) {
+    final pomodoroController = context.read<PomodoroController>();
+    
+    // Vincular tarea al Pomodoro
+    pomodoroController.linkTask(task.id);
+    
+    // Navegar a la pantalla de Pomodoro
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const PomodoroScreen()),
+    );
+    
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Pomodoro vinculado a: ${task.title}'),
+        backgroundColor: Colors.red,
+        duration: const Duration(seconds: 2),
       ),
     );
   }

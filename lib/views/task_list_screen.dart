@@ -518,6 +518,16 @@ class _TaskCard extends StatelessWidget {
                       ),
                       visualDensity: VisualDensity.compact,
                     ),
+                  
+                  // Pomodoros completados/estimados
+                  Chip(
+                    avatar: const Icon(Icons.timer, size: 16, color: Colors.red),
+                    label: Text(
+                      '${task.completedPomodoros}/${task.estimatedPomodoros} 🍅',
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                    visualDensity: VisualDensity.compact,
+                  ),
                 ],
               ),
               
@@ -529,6 +539,37 @@ class _TaskCard extends StatelessWidget {
                   backgroundColor: Colors.grey[200],
                 ),
               ],
+              
+              // Barra de progreso de Pomodoros
+              const SizedBox(height: 8),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Pomodoros: ${task.completedPomodoros}/${task.estimatedPomodoros}',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                      Text(
+                        '${task.remainingPomodoros} restantes (${task.remainingMinutes} min)',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  LinearProgressIndicator(
+                    value: task.pomodoroProgress,
+                    backgroundColor: Colors.red[50],
+                    valueColor: const AlwaysStoppedAnimation<Color>(Colors.red),
+                  ),
+                ],
+              ),
             ],
           ),
         ),

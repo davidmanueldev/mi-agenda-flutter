@@ -111,6 +111,10 @@ class Task {
   final DateTime? reminderDateTime; // "Recordarme"
   final TaskRecurrence recurrence; // Recurrencia
   final Map<String, dynamic>? customRecurrence; // Para recurrencia personalizada
+  
+  // CAMPOS POMODORO
+  final int estimatedPomodoros; // Número estimado de pomodoros para completar
+  final int completedPomodoros; // Número de pomodoros ya completados
 
   Task({
     required this.id,
@@ -128,6 +132,8 @@ class Task {
     this.reminderDateTime,
     this.recurrence = TaskRecurrence.none,
     this.customRecurrence,
+    this.estimatedPomodoros = 1,
+    this.completedPomodoros = 0,
   })  : steps = steps ?? [],
         createdAt = createdAt ?? DateTime.now(),
         updatedAt = updatedAt ?? DateTime.now();
@@ -157,6 +163,25 @@ class Task {
     final completed = steps.where((step) => step.isCompleted).length;
     return completed / steps.length;
   }
+  
+  /// Pomodoros restantes
+  int get remainingPomodoros {
+    final remaining = estimatedPomodoros - completedPomodoros;
+    return remaining < 0 ? 0 : remaining;
+  }
+  
+  /// Progreso de pomodoros (0.0 a 1.0)
+  double get pomodoroProgress {
+    if (estimatedPomodoros == 0) return 0.0;
+    final progress = completedPomodoros / estimatedPomodoros;
+    return progress > 1.0 ? 1.0 : progress;
+  }
+  
+  /// Tiempo estimado en minutos (asumiendo 25 min por pomodoro)
+  int get estimatedMinutes => estimatedPomodoros * 25;
+  
+  /// Tiempo restante en minutos
+  int get remainingMinutes => remainingPomodoros * 25;
 
   /// Copiar con modificaciones
   Task copyWith({
@@ -178,6 +203,8 @@ class Task {
     TaskRecurrence? recurrence,
     Map<String, dynamic>? customRecurrence,
     bool clearCustomRecurrence = false,
+    int? estimatedPomodoros,
+    int? completedPomodoros,
   }) {
     return Task(
       id: id ?? this.id,
@@ -195,6 +222,8 @@ class Task {
       reminderDateTime: clearReminder ? null : (reminderDateTime ?? this.reminderDateTime),
       recurrence: recurrence ?? this.recurrence,
       customRecurrence: clearCustomRecurrence ? null : (customRecurrence ?? this.customRecurrence),
+      estimatedPomodoros: estimatedPomodoros ?? this.estimatedPomodoros,
+      completedPomodoros: completedPomodoros ?? this.completedPomodoros,
     );
   }
 
@@ -216,6 +245,8 @@ class Task {
       'reminderDateTime': reminderDateTime?.millisecondsSinceEpoch,
       'recurrence': recurrence.name,
       'customRecurrence': customRecurrence != null ? jsonEncode(customRecurrence) : null,
+      'estimatedPomodoros': estimatedPomodoros,
+      'completedPomodoros': completedPomodoros,
     };
   }
 
@@ -254,6 +285,8 @@ class Task {
       customRecurrence: map['customRecurrence'] != null
           ? jsonDecode(map['customRecurrence'] as String) as Map<String, dynamic>
           : null,
+      estimatedPomodoros: map['estimatedPomodoros'] as int? ?? 1,
+      completedPomodoros: map['completedPomodoros'] as int? ?? 0,
     );
   }
 
@@ -275,6 +308,8 @@ class Task {
       'reminderDateTime': reminderDateTime?.toIso8601String(),
       'recurrence': recurrence.name,
       'customRecurrence': customRecurrence,
+      'estimatedPomodoros': estimatedPomodoros,
+      'completedPomodoros': completedPomodoros,
     };
   }
 
@@ -309,6 +344,8 @@ class Task {
         orElse: () => TaskRecurrence.none,
       ),
       customRecurrence: json['customRecurrence'] as Map<String, dynamic>?,
+      estimatedPomodoros: json['estimatedPomodoros'] as int? ?? 1,
+      completedPomodoros: json['completedPomodoros'] as int? ?? 0,
     );
   }
 

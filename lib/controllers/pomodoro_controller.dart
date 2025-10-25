@@ -119,11 +119,29 @@ class PomodoroController with ChangeNotifier {
     }
   }
 
+  /// Vincular una tarea al Pomodoro actual
+  void linkTask(String taskId) {
+    _linkedTaskId = taskId;
+    notifyListeners();
+    debugPrint('🔗 Tarea vinculada al Pomodoro: $taskId');
+  }
+
+  /// Desvincular tarea actual
+  void unlinkTask() {
+    _linkedTaskId = null;
+    notifyListeners();
+    debugPrint('🔓 Tarea desvinculada del Pomodoro');
+  }
+
   /// Iniciar timer
   Future<void> start({String? taskId}) async {
     if (_isRunning && !_isPaused) return;
 
-    _linkedTaskId = taskId;
+    // Solo sobrescribir linkedTaskId si se proporciona explícitamente
+    if (taskId != null) {
+      _linkedTaskId = taskId;
+      debugPrint('🔗 Tarea vinculada desde start(): $taskId');
+    }
     
     if (_isPaused) {
       // Reanudar desde pausa
@@ -140,12 +158,13 @@ class PomodoroController with ChangeNotifier {
         sessionType: _currentSessionType,
         duration: _remainingSeconds,
         startTime: DateTime.now(),
-        taskId: _linkedTaskId,
+        taskId: _linkedTaskId, // Usar la tarea vinculada actual
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
       );
       
       await _database.insertPomodoroSession(_currentSession!);
+      debugPrint('🍅 Sesión iniciada con tarea: ${_linkedTaskId ?? "ninguna"}');
     }
 
     _isRunning = true;
@@ -237,6 +256,9 @@ class PomodoroController with ChangeNotifier {
       if (_currentSessionType == SessionType.work) {
         _completedWorkSessions++;
         await _saveCompletedSessionsCount();
+        
+        // Auto-incrementar completedPomodoros de la tarea vinculada
+        await _incrementTaskPomodoros();
       }
       
       // Mostrar notificación
@@ -270,6 +292,44 @@ class PomodoroController with ChangeNotifier {
     }
     
     _remainingSeconds = _getDurationForSessionType(_currentSessionType);
+  }
+
+  /// Incrementar pomodoros completados de la tarea vinculada
+  Future<void> _incrementTaskPomodoros() async {
+    if (_linkedTaskId == null) {
+      debugPrint('⚪ No hay tarea vinculada, omitiendo incremento');
+      return;
+    }
+    
+    debugPrint('🔍 Intentando incrementar pomodoros para tarea: $_linkedTaskId');
+    
+    try {
+      // Obtener tarea actual
+      final task = await _database.getTaskById(_linkedTaskId!);
+      if (task == null) {
+        debugPrint('⚠️ Tarea $_linkedTaskId no encontrada en la BD');
+        return;
+      }
+      
+      debugPrint('📋 Tarea encontrada: "${task.title}" (${task.completedPomodoros}/${task.estimatedPomodoros})');
+      
+      // Incrementar pomodoros completados
+      final updatedTask = task.copyWith(
+        completedPomodoros: task.completedPomodoros + 1,
+        updatedAt: DateTime.now(),
+      );
+      
+      await _database.updateTask(updatedTask);
+      debugPrint('✅ Pomodoro incrementado para "${task.title}": ${updatedTask.completedPomodoros}/${task.estimatedPomodoros}');
+      
+      // Notificar cambios para que la UI se actualice
+      notifyListeners();
+      
+      // Mantener la tarea vinculada para siguientes sesiones
+      // NO desvincular automáticamente
+    } catch (e) {
+      debugPrint('❌ Error al incrementar pomodoros: $e');
+    }
   }
 
   /// Mostrar notificación al completar sesión

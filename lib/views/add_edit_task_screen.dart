@@ -25,6 +25,7 @@ class _AddEditTaskScreenState extends State<AddEditTaskScreen> {
   TaskPriority _selectedPriority = TaskPriority.medium;
   String _selectedCategory = 'Personal';
   List<TaskStep> _steps = [];
+  int _estimatedPomodoros = 1; // Estimación de pomodoros
   bool _isLoading = true;
 
   @override
@@ -47,6 +48,7 @@ class _AddEditTaskScreenState extends State<AddEditTaskScreen> {
           _selectedPriority = task.priority;
           _selectedCategory = task.category;
           _steps = List.from(task.steps);
+          _estimatedPomodoros = task.estimatedPomodoros;
           _isLoading = false;
         });
       } else {
@@ -228,6 +230,91 @@ class _AddEditTaskScreenState extends State<AddEditTaskScreen> {
                           },
                         );
                       },
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Estimación de Pomodoros
+                    Card(
+                      elevation: 2,
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                const Icon(Icons.timer, color: Colors.red),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Estimación de Pomodoros',
+                                  style: Theme.of(context).textTheme.titleMedium,
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        IconButton(
+                                          icon: const Icon(Icons.remove_circle_outline),
+                                          onPressed: _estimatedPomodoros > 1
+                                              ? () {
+                                                  setState(() {
+                                                    _estimatedPomodoros--;
+                                                  });
+                                                }
+                                              : null,
+                                          color: Colors.red,
+                                        ),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 20,
+                                            vertical: 8,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: Colors.red.shade50,
+                                            borderRadius: BorderRadius.circular(8),
+                                          ),
+                                          child: Text(
+                                            '$_estimatedPomodoros 🍅',
+                                            style: const TextStyle(
+                                              fontSize: 24,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ),
+                                        IconButton(
+                                          icon: const Icon(Icons.add_circle_outline),
+                                          onPressed: _estimatedPomodoros < 20
+                                              ? () {
+                                                  setState(() {
+                                                    _estimatedPomodoros++;
+                                                  });
+                                                }
+                                              : null,
+                                          color: Colors.red,
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      '≈ ${_estimatedPomodoros * 25} minutos',
+                                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                        color: Colors.grey[600],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
                     const SizedBox(height: 24),
 
@@ -414,6 +501,8 @@ class _AddEditTaskScreenState extends State<AddEditTaskScreen> {
       status: _existingTask?.status ?? TaskStatus.pending,
       steps: _steps,
       createdAt: _existingTask?.createdAt ?? DateTime.now(),
+      estimatedPomodoros: _estimatedPomodoros,
+      completedPomodoros: _existingTask?.completedPomodoros ?? 0,
     );
 
     if (!task.isValid()) {

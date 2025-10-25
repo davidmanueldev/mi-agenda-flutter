@@ -31,7 +31,7 @@ class DatabaseService implements DatabaseInterface {
 
     return await openDatabase(
       path,
-      version: 4, // Versión 4: Tabla de sesiones Pomodoro
+      version: 5, // Versión 5: Campos de Pomodoro en tareas
       onCreate: _createTables,
       onUpgrade: _upgradeDatabase,
     );
@@ -85,6 +85,8 @@ class DatabaseService implements DatabaseInterface {
         reminderDateTime INTEGER,
         recurrence TEXT NOT NULL DEFAULT 'none',
         customRecurrence TEXT,
+        estimatedPomodoros INTEGER NOT NULL DEFAULT 1,
+        completedPomodoros INTEGER NOT NULL DEFAULT 0,
         FOREIGN KEY (category) REFERENCES categories (id) ON DELETE CASCADE
       )
     ''');
@@ -258,6 +260,23 @@ class DatabaseService implements DatabaseInterface {
       await db.execute('CREATE INDEX idx_pomodoro_startTime ON pomodoro_sessions(startTime)');
       await db.execute('CREATE INDEX idx_pomodoro_userId ON pomodoro_sessions(userId)');
       await db.execute('CREATE INDEX idx_pomodoro_taskId ON pomodoro_sessions(taskId)');
+    }
+    
+    // Migración de versión 4 a 5: Agregar campos de Pomodoro a tareas
+    if (oldVersion < 5) {
+      // Verificar si las columnas ya existen
+      var columns = await db.rawQuery('PRAGMA table_info(tasks)');
+      var columnNames = columns.map((col) => col['name'] as String).toSet();
+      
+      // Agregar estimatedPomodoros si no existe
+      if (!columnNames.contains('estimatedPomodoros')) {
+        await db.execute('ALTER TABLE tasks ADD COLUMN estimatedPomodoros INTEGER NOT NULL DEFAULT 1');
+      }
+      
+      // Agregar completedPomodoros si no existe
+      if (!columnNames.contains('completedPomodoros')) {
+        await db.execute('ALTER TABLE tasks ADD COLUMN completedPomodoros INTEGER NOT NULL DEFAULT 0');
+      }
     }
   }
 

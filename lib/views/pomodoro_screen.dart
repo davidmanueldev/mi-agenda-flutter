@@ -2,7 +2,9 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../controllers/pomodoro_controller.dart';
+import '../controllers/task_controller.dart';
 import '../models/pomodoro_session.dart';
+import '../models/task.dart';
 import 'pomodoro_history_screen.dart';
 
 /// Pantalla del temporizador Pomodoro
@@ -41,6 +43,9 @@ class PomodoroScreen extends StatelessWidget {
             children: [
               // Indicador de tipo de sesión
               _buildSessionTypeIndicator(context, controller),
+              
+              // Selector de tarea vinculada
+              _buildTaskSelector(context, controller),
               
               // Timer circular
               Expanded(
@@ -117,6 +122,81 @@ class PomodoroScreen extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+
+  /// Selector de tarea vinculada
+  Widget _buildTaskSelector(BuildContext context, PomodoroController pomodoroController) {
+    return Consumer<TaskController>(
+      builder: (context, taskController, child) {
+        final linkedTaskId = pomodoroController.linkedTaskId;
+        final tasks = taskController.tasks.where((t) => t.status == TaskStatus.pending).toList();
+        
+        Task? linkedTask;
+        if (linkedTaskId != null) {
+          try {
+            linkedTask = tasks.firstWhere((t) => t.id == linkedTaskId);
+          } catch (e) {
+            // Tarea no encontrada
+          }
+        }
+
+        return Container(
+          margin: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.blue.shade50,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.blue.shade200),
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.task_alt, color: Colors.blue),
+              const SizedBox(width: 12),
+              Expanded(
+                child: linkedTask != null
+                    ? Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            linkedTask.title,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          Text(
+                            '${linkedTask.completedPomodoros}/${linkedTask.estimatedPomodoros} 🍅 completados',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                        ],
+                      )
+                    : const Text(
+                        'Sin tarea vinculada',
+                        style: TextStyle(
+                          fontStyle: FontStyle.italic,
+                          color: Colors.grey,
+                        ),
+                      ),
+              ),
+              IconButton(
+                icon: Icon(
+                  linkedTask != null ? Icons.change_circle : Icons.add_circle,
+                  color: Colors.blue,
+                ),
+                onPressed: () => _showTaskSelectorDialog(context, pomodoroController, tasks),
+                tooltip: linkedTask != null ? 'Cambiar tarea' : 'Seleccionar tarea',
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -457,4 +537,103 @@ class _CircularTimerPainter extends CustomPainter {
         oldDelegate.backgroundColor != backgroundColor ||
         oldDelegate.progressColor != progressColor;
   }
+}
+
+/// Diálogo para seleccionar tarea a vincular con Pomodoro
+void _showTaskSelectorDialog(
+  BuildContext context,
+  PomodoroController pomodoroController,
+  List<Task> tasks,
+) {
+  showDialog(
+    context: context,
+    builder: (context) {
+      return AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.task_alt, color: Colors.blue),
+            SizedBox(width: 8),
+            Text('Seleccionar Tarea'),
+          ],
+        ),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: tasks.isEmpty
+              ? const Padding(
+                  padding: EdgeInsets.all(24),
+                  child: Center(
+                    child: Text(
+                      'No hay tareas pendientes',
+                      style: TextStyle(fontStyle: FontStyle.italic),
+                    ),
+                  ),
+                )
+              : ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: tasks.length + 1, // +1 para opción "Sin vincular"
+                  itemBuilder: (context, index) {
+                    if (index == 0) {
+                      // Opción para desvincular
+                      return ListTile(
+                        leading: const Icon(Icons.cancel, color: Colors.grey),
+                        title: const Text('Sin vincular'),
+                        subtitle: const Text('Pomodoro sin tarea específica'),
+                        onTap: () {
+                          pomodoroController.unlinkTask();
+                          Navigator.pop(context);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Tarea desvinculada'),
+                              duration: Duration(seconds: 1),
+                            ),
+                          );
+                        },
+                      );
+                    }
+                    
+                    final task = tasks[index - 1];
+                    final isLinked = pomodoroController.linkedTaskId == task.id;
+                    
+                    return ListTile(
+                      leading: Icon(
+                        Icons.task,
+                        color: isLinked ? Colors.blue : Colors.grey,
+                      ),
+                      title: Text(
+                        task.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      subtitle: Text(
+                        '${task.completedPomodoros}/${task.estimatedPomodoros} 🍅 • ${task.remainingPomodoros} restantes',
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                      trailing: isLinked
+                          ? const Icon(Icons.check_circle, color: Colors.green)
+                          : null,
+                      selected: isLinked,
+                      onTap: () {
+                        pomodoroController.linkTask(task.id);
+                        Navigator.pop(context);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Vinculado a: ${task.title}'),
+                            backgroundColor: Colors.blue,
+                            duration: const Duration(seconds: 2),
+                          ),
+                        );
+                      },
+                    );
+                  },
+                ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cerrar'),
+          ),
+        ],
+      );
+    },
+  );
 }
