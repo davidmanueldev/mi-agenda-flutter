@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../controllers/task_controller.dart';
 import '../models/task.dart';
 import '../models/category.dart' as model;
+import '../widgets/app_drawer.dart';
 import 'add_edit_task_screen.dart';
 import 'task_detail_screen.dart';
 import 'templates_screen.dart';
@@ -61,6 +62,7 @@ class _TaskListScreenState extends State<TaskListScreen> {
           ),
         ],
       ),
+      drawer: const AppDrawer(currentRoute: 'tasks'),
       body: Column(
         children: [
           // Barra de búsqueda

@@ -626,6 +626,7 @@ class DatabaseService implements DatabaseInterface {
   // ==================== OPERACIONES DE TAREAS ====================
 
   /// Insertar una nueva tarea
+  @override
   Future<int> insertTask(Task task) async {
     try {
       final db = await database;
@@ -641,6 +642,7 @@ class DatabaseService implements DatabaseInterface {
   }
 
   /// Actualizar una tarea existente
+  @override
   Future<int> updateTask(Task task) async {
     try {
       final db = await database;
@@ -656,6 +658,7 @@ class DatabaseService implements DatabaseInterface {
   }
 
   /// Eliminar una tarea por ID
+  @override
   Future<int> deleteTask(String id) async {
     try {
       final db = await database;
@@ -670,6 +673,7 @@ class DatabaseService implements DatabaseInterface {
   }
 
   /// Obtener todas las tareas
+  @override
   Future<List<Task>> getAllTasks() async {
     try {
       final db = await database;
@@ -684,6 +688,7 @@ class DatabaseService implements DatabaseInterface {
   }
 
   /// Obtener tarea por ID
+  @override
   Future<Task?> getTaskById(String id) async {
     try {
       final db = await database;
@@ -702,6 +707,7 @@ class DatabaseService implements DatabaseInterface {
   }
 
   /// Obtener tareas por estado
+  @override
   Future<List<Task>> getTasksByStatus(TaskStatus status) async {
     try {
       final db = await database;
@@ -718,6 +724,7 @@ class DatabaseService implements DatabaseInterface {
   }
 
   /// Obtener tareas por prioridad
+  @override
   Future<List<Task>> getTasksByPriority(TaskPriority priority) async {
     try {
       final db = await database;
@@ -734,6 +741,7 @@ class DatabaseService implements DatabaseInterface {
   }
 
   /// Obtener tareas por categoría
+  @override
   Future<List<Task>> getTasksByCategory(String category) async {
     try {
       final db = await database;
@@ -750,6 +758,7 @@ class DatabaseService implements DatabaseInterface {
   }
 
   /// Obtener tareas vencidas
+  @override
   Future<List<Task>> getOverdueTasks() async {
     try {
       final db = await database;
@@ -767,6 +776,7 @@ class DatabaseService implements DatabaseInterface {
   }
 
   /// Obtener tareas de hoy
+  @override
   Future<List<Task>> getTodayTasks() async {
     try {
       final db = await database;
@@ -790,6 +800,7 @@ class DatabaseService implements DatabaseInterface {
   }
 
   /// Buscar tareas por texto
+  @override
   Future<List<Task>> searchTasks(String query) async {
     try {
       final db = await database;

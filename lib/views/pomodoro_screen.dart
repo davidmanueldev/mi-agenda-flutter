@@ -5,6 +5,7 @@ import '../controllers/pomodoro_controller.dart';
 import '../controllers/task_controller.dart';
 import '../models/pomodoro_session.dart';
 import '../models/task.dart';
+import '../widgets/app_drawer.dart';
 import 'pomodoro_history_screen.dart';
 
 /// Pantalla del temporizador Pomodoro
@@ -37,6 +38,7 @@ class PomodoroScreen extends StatelessWidget {
           ),
         ],
       ),
+      drawer: const AppDrawer(currentRoute: 'pomodoro'),
       body: Consumer<PomodoroController>(
         builder: (context, controller, child) {
           return Column(
@@ -403,7 +405,7 @@ class PomodoroScreen extends StatelessWidget {
             size: const Size(280, 280),
             painter: _CircularTimerPainter(
               progress: progress,
-              backgroundColor: theme.colorScheme.surfaceVariant,
+              backgroundColor: theme.colorScheme.surfaceContainerHighest,
               progressColor: _getColorForSessionType(controller.currentSessionType),
             ),
           ),

@@ -38,7 +38,7 @@ class _AddEditTaskScreenState extends State<AddEditTaskScreen> {
     if (widget.taskId != null) {
       // Editar tarea existente
       final controller = context.read<TaskController>();
-      final task = await controller.getTaskById(widget.taskId!);
+      final task = controller.getTaskById(widget.taskId!);
 
       if (task != null) {
         setState(() {

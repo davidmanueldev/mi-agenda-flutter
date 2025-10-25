@@ -5,6 +5,7 @@ import '../controllers/task_controller.dart';
 import '../models/task_template.dart';
 import '../models/task.dart';
 import '../utils/security_utils.dart';
+import '../widgets/app_drawer.dart';
 
 /// Pantalla de gestión de plantillas de tareas
 class TemplatesScreen extends StatelessWidget {
@@ -23,6 +24,7 @@ class TemplatesScreen extends StatelessWidget {
           ),
         ],
       ),
+      drawer: const AppDrawer(currentRoute: 'templates'),
       body: Consumer<TemplateController>(
         builder: (context, controller, child) {
           if (controller.isLoading) {
@@ -555,7 +557,7 @@ class _TemplateDialogState extends State<_TemplateDialog> {
                   }
                   
                   return DropdownButtonFormField<String>(
-                    value: _selectedCategory,
+                    initialValue: _selectedCategory,
                     decoration: const InputDecoration(
                       labelText: 'Categoría',
                       prefixIcon: Icon(Icons.category),
@@ -594,7 +596,7 @@ class _TemplateDialogState extends State<_TemplateDialog> {
               
               // Prioridad
               DropdownButtonFormField<TaskPriority>(
-                value: _selectedPriority,
+                initialValue: _selectedPriority,
                 decoration: const InputDecoration(
                   labelText: 'Prioridad',
                   prefixIcon: Icon(Icons.flag),

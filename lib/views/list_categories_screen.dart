@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../controllers/category_controller.dart';
 import '../models/category.dart';
+import '../widgets/app_drawer.dart';
 
 /// Pantalla de gestión de categorías
 /// Permite visualizar, crear, editar y eliminar categorías
@@ -38,6 +39,7 @@ class ListCategoriesScreen extends StatelessWidget {
           ),
         ],
       ),
+      drawer: const AppDrawer(currentRoute: 'categories'),
       body: Consumer<CategoryController>(
         builder: (context, controller, child) {
           if (controller.errorMessage != null) {

@@ -717,6 +717,7 @@ class DatabaseServiceHybridV2 implements DatabaseInterface {
   // ==================== OPERACIONES DE TAREAS ====================
 
   /// Insertar nueva tarea (offline-first)
+  @override
   Future<int> insertTask(Task task) async {
     // SIEMPRE guardar en SQLite primero
     await _localService.insertTask(task);
@@ -736,6 +737,7 @@ class DatabaseServiceHybridV2 implements DatabaseInterface {
   }
 
   /// Actualizar tarea existente (offline-first)
+  @override
   Future<int> updateTask(Task task) async {
     await _localService.updateTask(task);
     
@@ -753,6 +755,7 @@ class DatabaseServiceHybridV2 implements DatabaseInterface {
   }
 
   /// Eliminar tarea (offline-first)
+  @override
   Future<int> deleteTask(String taskId) async {
     await _localService.deleteTask(taskId);
     
@@ -776,41 +779,49 @@ class DatabaseServiceHybridV2 implements DatabaseInterface {
   }
 
   /// Obtener todas las tareas
+  @override
   Future<List<Task>> getAllTasks() async {
     return await _localService.getAllTasks();
   }
 
   /// Obtener tarea por ID
+  @override
   Future<Task?> getTaskById(String id) async {
     return await _localService.getTaskById(id);
   }
 
   /// Obtener tareas por estado
+  @override
   Future<List<Task>> getTasksByStatus(TaskStatus status) async {
     return await _localService.getTasksByStatus(status);
   }
 
   /// Obtener tareas por prioridad
+  @override
   Future<List<Task>> getTasksByPriority(TaskPriority priority) async {
     return await _localService.getTasksByPriority(priority);
   }
 
   /// Obtener tareas por categoría
+  @override
   Future<List<Task>> getTasksByCategory(String category) async {
     return await _localService.getTasksByCategory(category);
   }
 
   /// Obtener tareas vencidas
+  @override
   Future<List<Task>> getOverdueTasks() async {
     return await _localService.getOverdueTasks();
   }
 
   /// Obtener tareas de hoy
+  @override
   Future<List<Task>> getTodayTasks() async {
     return await _localService.getTodayTasks();
   }
 
   /// Buscar tareas
+  @override
   Future<List<Task>> searchTasks(String query) async {
     return await _localService.searchTasks(query);
   }

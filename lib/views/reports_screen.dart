@@ -6,6 +6,7 @@ import '../controllers/task_controller.dart';
 import '../models/pomodoro_session.dart';
 import '../models/task.dart';
 import '../models/category.dart' as model;
+import '../widgets/app_drawer.dart';
 
 /// Pantalla de reportes visuales con gráficas
 class ReportsScreen extends StatefulWidget {
@@ -62,6 +63,7 @@ class _ReportsScreenState extends State<ReportsScreen> with SingleTickerProvider
           ),
         ],
       ),
+      drawer: const AppDrawer(currentRoute: 'reports'),
       body: TabBarView(
         controller: _tabController,
         children: [
@@ -360,7 +362,7 @@ class _ReportsScreenState extends State<ReportsScreen> with SingleTickerProvider
                     ],
                   ),
                 );
-              }).toList(),
+              }),
             ],
           ),
         );

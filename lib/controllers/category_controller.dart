@@ -129,8 +129,4 @@ class CategoryController with ChangeNotifier {
     _errorMessage = null;
   }
   
-  @override
-  void dispose() {
-    super.dispose();
-  }
 }

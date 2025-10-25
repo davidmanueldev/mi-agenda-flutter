@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../controllers/pomodoro_controller.dart';
 import '../models/pomodoro_session.dart';
+import '../widgets/app_drawer.dart';
 
 /// Pantalla de historial de sesiones Pomodoro
 class PomodoroHistoryScreen extends StatefulWidget {
@@ -44,6 +45,7 @@ class _PomodoroHistoryScreenState extends State<PomodoroHistoryScreen> {
           ),
         ],
       ),
+      drawer: const AppDrawer(currentRoute: 'pomodoro_history'),
       body: Consumer<PomodoroController>(
         builder: (context, controller, _) {
           if (controller.isLoading) {
