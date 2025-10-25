@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/pomodoro_session.dart';
 import '../services/database_interface.dart';
 import '../services/database_service_hybrid_v2.dart';
@@ -80,11 +81,15 @@ class PomodoroController with ChangeNotifier {
   Future<void> _initialize() async {
     // Configurar listener para cambios de Firebase (solo si es DatabaseServiceHybridV2)
     if (_database is DatabaseServiceHybridV2) {
-      (_database as DatabaseServiceHybridV2).onDataChanged = () {
-        _loadSessions();
-        _loadStats();
+      (_database as DatabaseServiceHybridV2).onDataChanged = () async {
+        await _loadSessions();
+        await _loadStats();
+        await _loadCompletedSessionsCount();
       };
     }
+    
+    // Cargar contador de sesiones persistido
+    await _loadCompletedSessionsCount();
     
     // Cargar datos iniciales
     await _loadSessions();
@@ -189,9 +194,14 @@ class PomodoroController with ChangeNotifier {
 
   /// Saltar a la siguiente sesión
   Future<void> skipToNext() async {
-    await stop();
-    _switchToNextSessionType();
-    notifyListeners();
+    // Si hay una sesión activa, completarla antes de saltar
+    if (_currentSession != null && _isRunning) {
+      await _completeSession();
+    } else {
+      await stop();
+      _switchToNextSessionType();
+      notifyListeners();
+    }
   }
 
   /// Iniciar el timer interno
@@ -226,6 +236,7 @@ class PomodoroController with ChangeNotifier {
       // Incrementar contador si fue sesión de trabajo
       if (_currentSessionType == SessionType.work) {
         _completedWorkSessions++;
+        await _saveCompletedSessionsCount();
       }
       
       // Mostrar notificación
@@ -373,12 +384,53 @@ class PomodoroController with ChangeNotifier {
   }
 
   /// Resetear contador de sesiones completadas
-  void resetCompletedSessions() {
+  Future<void> resetCompletedSessions() async {
     _completedWorkSessions = 0;
+    await _saveCompletedSessionsCount();
     notifyListeners();
   }
 
   // ==================== MÉTODOS AUXILIARES ====================
+
+  /// Cargar contador de sesiones de hoy desde la base de datos
+  Future<void> _loadCompletedSessionsCount() async {
+    try {
+      // Obtener sesiones de trabajo completadas HOY desde la base de datos
+      final todaySessions = await _database.getTodayPomodoroSessions();
+      
+      // Contar solo las sesiones de TRABAJO completadas
+      _completedWorkSessions = todaySessions.where((session) {
+        return session.sessionType == SessionType.work && session.isCompleted;
+      }).length;
+      
+      print('💾 Contador cargado desde BD: $_completedWorkSessions sesiones de trabajo hoy');
+      
+      // Guardar en SharedPreferences para respaldo
+      await _saveCompletedSessionsCount();
+      
+      notifyListeners();
+    } catch (e) {
+      print('❌ Error cargando contador de sesiones: $e');
+      // Fallback: intentar cargar desde SharedPreferences
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        _completedWorkSessions = prefs.getInt('pomodoro_completed_sessions') ?? 0;
+      } catch (_) {
+        _completedWorkSessions = 0;
+      }
+    }
+  }
+
+  /// Guardar contador de sesiones en persistencia
+  Future<void> _saveCompletedSessionsCount() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt('pomodoro_completed_sessions', _completedWorkSessions);
+      print('💾 Contador guardado: $_completedWorkSessions');
+    } catch (e) {
+      print('❌ Error guardando contador de sesiones: $e');
+    }
+  }
 
   void _setLoading(bool loading) {
     _isLoading = loading;
@@ -388,10 +440,6 @@ class PomodoroController with ChangeNotifier {
   void _setError(String error) {
     _errorMessage = error;
     notifyListeners();
-  }
-
-  void _clearError() {
-    _errorMessage = null;
   }
 
   @override

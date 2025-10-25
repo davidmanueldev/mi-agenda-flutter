@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../controllers/pomodoro_controller.dart';
 import '../models/pomodoro_session.dart';
+import 'pomodoro_history_screen.dart';
 
 /// Pantalla del temporizador Pomodoro
 /// Interfaz visual con circular timer y controles
@@ -23,7 +24,12 @@ class PomodoroScreen extends StatelessWidget {
           IconButton(
             icon: const Icon(Icons.history),
             onPressed: () {
-              // TODO: Navegar a historial de sesiones
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const PomodoroHistoryScreen(),
+                ),
+              );
             },
             tooltip: 'Historial',
           ),
@@ -330,15 +336,17 @@ class PomodoroScreen extends StatelessWidget {
                 
                 // Resetear contador
                 TextButton.icon(
-                  onPressed: () {
-                    pomodoroController.resetCompletedSessions();
-                    Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Contador de sesiones reseteado'),
-                        duration: Duration(seconds: 2),
-                      ),
-                    );
+                  onPressed: () async {
+                    await pomodoroController.resetCompletedSessions();
+                    if (context.mounted) {
+                      Navigator.pop(context);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Contador de sesiones reseteado'),
+                          duration: Duration(seconds: 2),
+                        ),
+                      );
+                    }
                   },
                   icon: const Icon(Icons.refresh),
                   label: const Text('Resetear contador de sesiones'),

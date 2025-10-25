@@ -649,7 +649,10 @@ class FirebaseService {
     await _ensureAuthenticated();
     
     try {
-      await _pomodoroCollection.doc(session.id).set(session.toJson());
+      final sessionData = session.toJson();
+      sessionData['userId'] = currentUserId; // Asociar con usuario autenticado
+      
+      await _pomodoroCollection.doc(session.id).set(sessionData);
     } catch (e) {
       throw FirebaseServiceException('Error al crear sesión Pomodoro: $e');
     }
@@ -660,7 +663,10 @@ class FirebaseService {
     await _ensureAuthenticated();
     
     try {
-      await _pomodoroCollection.doc(session.id).update(session.toJson());
+      final sessionData = session.toJson();
+      sessionData['userId'] = currentUserId; // Asociar con usuario autenticado
+      
+      await _pomodoroCollection.doc(session.id).update(sessionData);
     } catch (e) {
       throw FirebaseServiceException('Error al actualizar sesión Pomodoro: $e');
     }
