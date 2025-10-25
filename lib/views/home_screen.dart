@@ -2,13 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:table_calendar/table_calendar.dart';
 import '../controllers/event_controller.dart';
+import '../controllers/pomodoro_controller.dart';
 import '../models/event.dart';
+import '../models/pomodoro_session.dart';
 import '../services/connectivity_service.dart';
 import 'add_edit_event_screen.dart';
 import 'event_detail_screen.dart';
 import 'list_categories_screen.dart';
 import 'task_list_screen.dart';
 import 'pomodoro_screen.dart';
+import 'pomodoro_history_screen.dart';
 import '../widgets/event_card.dart';
 import '../widgets/custom_app_bar.dart';
 
@@ -31,6 +34,7 @@ class _HomeScreenState extends State<HomeScreen> {
     // Cargar datos iniciales
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<EventController>().loadEvents();
+      context.read<PomodoroController>().refresh();
     });
   }
 
@@ -106,86 +110,190 @@ class _HomeScreenState extends State<HomeScreen> {
 
   /// Construir el widget del calendario
   Widget _buildCalendar(EventController controller) {
-    return Card(
-      margin: const EdgeInsets.all(8.0),
-      elevation: 4,
-      child: TableCalendar<Event>(
-        firstDay: DateTime.utc(2020, 1, 1),
-        lastDay: DateTime.utc(2030, 12, 31),
-        focusedDay: _focusedDay,
-        selectedDayPredicate: (day) {
-          return isSameDay(controller.selectedDate, day);
-        },
-        calendarFormat: _calendarFormat,
-        eventLoader: (day) {
-          // Retornar eventos para el día especificado
-          return controller.events.where((event) {
-            return isSameDay(event.startTime, day);
-          }).toList();
-        },
-        startingDayOfWeek: StartingDayOfWeek.monday,
-        calendarStyle: CalendarStyle(
-          outsideDaysVisible: false,
-          weekendTextStyle: TextStyle(
-            color: Theme.of(context).colorScheme.error,
+    return Consumer<PomodoroController>(
+      builder: (context, pomodoroController, child) {
+        return Card(
+          margin: const EdgeInsets.all(8.0),
+          elevation: 4,
+          child: TableCalendar<dynamic>(
+            firstDay: DateTime.utc(2020, 1, 1),
+            lastDay: DateTime.utc(2030, 12, 31),
+            focusedDay: _focusedDay,
+            selectedDayPredicate: (day) {
+              return isSameDay(controller.selectedDate, day);
+            },
+            calendarFormat: _calendarFormat,
+            eventLoader: (day) {
+              // Combinar eventos y sesiones Pomodoro
+              final events = controller.events.where((event) {
+                return isSameDay(event.startTime, day);
+              }).toList();
+              
+              final pomodoroSessions = pomodoroController.sessions.where((session) {
+                return isSameDay(session.startTime, day) && session.isCompleted;
+              }).toList();
+              
+              // Retornar lista combinada para mostrar marcadores
+              return [...events, ...pomodoroSessions];
+            },
+            startingDayOfWeek: StartingDayOfWeek.monday,
+            calendarStyle: CalendarStyle(
+              outsideDaysVisible: false,
+              weekendTextStyle: TextStyle(
+                color: Theme.of(context).colorScheme.error,
+              ),
+              holidayTextStyle: TextStyle(
+                color: Theme.of(context).colorScheme.error,
+              ),
+              markerDecoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.primary,
+                shape: BoxShape.circle,
+              ),
+            ),
+            calendarBuilders: CalendarBuilders(
+              markerBuilder: (context, date, events) {
+                if (events.isEmpty) return null;
+                
+                // Separar eventos de sesiones Pomodoro
+                final eventCount = events.where((e) => e is Event).length;
+                final pomodoroCount = events.where((e) => e is PomodoroSession).length;
+                
+                return Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    // Marcador de eventos
+                    if (eventCount > 0)
+                      Container(
+                        width: 6,
+                        height: 6,
+                        margin: const EdgeInsets.symmetric(horizontal: 1),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).colorScheme.primary,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                    // Marcador de Pomodoro
+                    if (pomodoroCount > 0)
+                      Container(
+                        width: 6,
+                        height: 6,
+                        margin: const EdgeInsets.symmetric(horizontal: 1),
+                        decoration: const BoxDecoration(
+                          color: Colors.red,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                  ],
+                );
+              },
+            ),
+            headerStyle: HeaderStyle(
+              formatButtonVisible: true,
+              titleCentered: true,
+              formatButtonShowsNext: false,
+              formatButtonDecoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.primary,
+                borderRadius: BorderRadius.circular(16.0),
+              ),
+              formatButtonTextStyle: TextStyle(
+                color: Theme.of(context).colorScheme.onPrimary,
+              ),
+            ),
+            onDaySelected: (selectedDay, focusedDay) {
+              setState(() {
+                _focusedDay = focusedDay;
+              });
+              controller.selectDate(selectedDay);
+            },
+            onFormatChanged: (format) {
+              setState(() {
+                _calendarFormat = format;
+              });
+            },
+            onPageChanged: (focusedDay) {
+              setState(() {
+                _focusedDay = focusedDay;
+              });
+            },
           ),
-          holidayTextStyle: TextStyle(
-            color: Theme.of(context).colorScheme.error,
-          ),
-          markerDecoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.primary,
-            shape: BoxShape.circle,
-          ),
-        ),
-        headerStyle: HeaderStyle(
-          formatButtonVisible: true,
-          titleCentered: true,
-          formatButtonShowsNext: false,
-          formatButtonDecoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.primary,
-            borderRadius: BorderRadius.circular(16.0),
-          ),
-          formatButtonTextStyle: TextStyle(
-            color: Theme.of(context).colorScheme.onPrimary,
-          ),
-        ),
-        onDaySelected: (selectedDay, focusedDay) {
-          setState(() {
-            _focusedDay = focusedDay;
-          });
-          controller.selectDate(selectedDay);
-        },
-        onFormatChanged: (format) {
-          setState(() {
-            _calendarFormat = format;
-          });
-        },
-        onPageChanged: (focusedDay) {
-          setState(() {
-            _focusedDay = focusedDay;
-          });
-        },
-      ),
+        );
+      },
     );
   }
 
   /// Construir la lista de eventos del día seleccionado
   Widget _buildEventsList(EventController controller) {
-    final eventsForDay = controller.eventsForSelectedDate;
+    return Consumer<PomodoroController>(
+      builder: (context, pomodoroController, child) {
+        final eventsForDay = controller.eventsForSelectedDate;
+        final pomodoroSessionsForDay = pomodoroController.sessions.where((session) {
+          return isSameDay(session.startTime, controller.selectedDate) && session.isCompleted;
+        }).toList();
 
-    if (eventsForDay.isEmpty) {
-      return _buildEmptyState();
-    }
+        if (eventsForDay.isEmpty && pomodoroSessionsForDay.isEmpty) {
+          return _buildEmptyState();
+        }
 
-    return ListView.builder(
-      padding: const EdgeInsets.all(8.0),
-      itemCount: eventsForDay.length,
-      itemBuilder: (context, index) {
-        final event = eventsForDay[index];
-        return EventCard(
-          event: event,
-          onTap: () => _navigateToEventDetail(event),
-          onToggleComplete: () => controller.toggleEventCompletion(event.id),
+        return ListView(
+          padding: const EdgeInsets.all(8.0),
+          children: [
+            // Sección de Eventos
+            if (eventsForDay.isNotEmpty) ...[
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.event,
+                      size: 20,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Eventos (${eventsForDay.length})',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              ...eventsForDay.map((event) {
+                return EventCard(
+                  event: event,
+                  onTap: () => _navigateToEventDetail(event),
+                  onToggleComplete: () => controller.toggleEventCompletion(event.id),
+                );
+              }).toList(),
+              const SizedBox(height: 16),
+            ],
+            
+            // Sección de Sesiones Pomodoro
+            if (pomodoroSessionsForDay.isNotEmpty) ...[
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.timer,
+                      size: 20,
+                      color: Colors.red,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Sesiones Pomodoro (${pomodoroSessionsForDay.length}) 🍅',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              ...pomodoroSessionsForDay.map((session) {
+                return _buildPomodoroSessionCard(context, session);
+              }).toList(),
+            ],
+          ],
         );
       },
     );
@@ -219,6 +327,79 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
       ),
     );
+  }
+
+  /// Card de sesión Pomodoro
+  Widget _buildPomodoroSessionCard(BuildContext context, PomodoroSession session) {
+    final sessionColor = _getSessionColor(session.sessionType);
+    final sessionLabel = _getSessionLabel(session.sessionType);
+    
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      child: ListTile(
+        leading: Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: sessionColor.withOpacity(0.2),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(
+            Icons.timer,
+            color: sessionColor,
+            size: 24,
+          ),
+        ),
+        title: Text(
+          sessionLabel,
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+        subtitle: Text(
+          '${_formatTime(session.startTime)}${session.endTime != null ? ' - ${_formatTime(session.endTime!)}' : ''} • ${session.durationInMinutes} min',
+        ),
+        trailing: session.taskId != null
+            ? const Icon(Icons.task_alt, color: Colors.blue, size: 20)
+            : null,
+        onTap: () {
+          // Navegar a historial de Pomodoro
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const PomodoroHistoryScreen(),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  /// Obtener color por tipo de sesión
+  Color _getSessionColor(SessionType type) {
+    switch (type) {
+      case SessionType.work:
+        return Colors.red;
+      case SessionType.shortBreak:
+        return Colors.green;
+      case SessionType.longBreak:
+        return Colors.blue;
+    }
+  }
+
+  /// Obtener etiqueta por tipo de sesión
+  String _getSessionLabel(SessionType type) {
+    switch (type) {
+      case SessionType.work:
+        return 'Trabajo 🍅';
+      case SessionType.shortBreak:
+        return 'Descanso Corto ☕';
+      case SessionType.longBreak:
+        return 'Descanso Largo 🌟';
+    }
+  }
+
+  /// Formatear hora
+  String _formatTime(DateTime time) {
+    return '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
   }
 
   /// Banner de estado de conectividad y sincronización
@@ -401,6 +582,19 @@ class _HomeScreenState extends State<HomeScreen> {
                 context,
                 MaterialPageRoute(
                   builder: (context) => const PomodoroScreen(),
+                ),
+              );
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.history),
+            title: const Text('Historial Pomodoro'),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const PomodoroHistoryScreen(),
                 ),
               );
             },
