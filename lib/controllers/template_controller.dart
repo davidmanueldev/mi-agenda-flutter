@@ -27,8 +27,8 @@ class TemplateController with ChangeNotifier {
   /// Inicializar controlador
   Future<void> _initialize() async {
     // Registrar callback para cambios de datos si es híbrido
-    if (_database is DatabaseServiceHybridV2) {
-      (_database as DatabaseServiceHybridV2).onDataChanged = () {
+    if (_database case DatabaseServiceHybridV2 hybridDb) {
+      hybridDb.onDataChanged = () {
         debugPrint('🔄 Templates: Datos cambiados desde Firebase, recargando...');
         _loadTemplates();
       };

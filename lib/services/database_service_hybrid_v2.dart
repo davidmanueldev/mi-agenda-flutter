@@ -881,6 +881,8 @@ class DatabaseServiceHybridV2 implements DatabaseInterface {
     await _eventsSubscription?.cancel();
     await _categoriesSubscription?.cancel();
     await _tasksSubscription?.cancel();
+    await _pomodoroSubscription?.cancel();
+    await _templatesSubscription?.cancel();
     await _localService.closeDatabase();
   }
   

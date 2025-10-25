@@ -27,8 +27,8 @@ class CategoryController with ChangeNotifier {
   /// Inicializar controlador
   Future<void> _initialize() async {
     // Configurar listener para cambios de Firebase (solo si es DatabaseServiceHybridV2)
-    if (_database is DatabaseServiceHybridV2) {
-      (_database as DatabaseServiceHybridV2).onDataChanged = () {
+    if (_database case DatabaseServiceHybridV2 hybridDb) {
+      hybridDb.onDataChanged = () {
         // Recargar categorías cuando hay cambios en Firebase
         _loadCategories();
       };

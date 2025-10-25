@@ -46,6 +46,14 @@ class EventController extends ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
   DateTime get selectedDate => _selectedDate;
+  
+  /// Getter para acceder al stream de estado de sincronización (si está usando HybridV2)
+  Stream<SyncStatus>? get syncStatusStream {
+    if (_databaseService case DatabaseServiceHybridV2 hybridDb) {
+      return hybridDb.syncStatusStream;
+    }
+    return null;
+  }
 
   /// Eventos filtrados por la fecha seleccionada
   List<Event> get eventsForSelectedDate {

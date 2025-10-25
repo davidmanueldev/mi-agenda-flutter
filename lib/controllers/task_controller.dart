@@ -51,8 +51,8 @@ class TaskController with ChangeNotifier {
     
     try {
       // Configurar callback para cambios de datos (solo si es DatabaseServiceHybridV2)
-      if (_database is DatabaseServiceHybridV2) {
-        (_database as DatabaseServiceHybridV2).onDataChanged = () {
+      if (_database case DatabaseServiceHybridV2 hybridDb) {
+        hybridDb.onDataChanged = () {
           _loadTasks();
         };
       }

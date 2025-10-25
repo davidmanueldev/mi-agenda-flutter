@@ -6,6 +6,7 @@ import '../controllers/pomodoro_controller.dart';
 import '../models/event.dart';
 import '../models/pomodoro_session.dart';
 import '../services/connectivity_service.dart';
+import '../services/database_service_hybrid_v2.dart';
 import 'add_edit_event_screen.dart';
 import 'event_detail_screen.dart';
 import 'list_categories_screen.dart';
@@ -406,27 +407,69 @@ class _HomeScreenState extends State<HomeScreen> {
 
   /// Banner de estado de conectividad y sincronización
   Widget _buildConnectivityBanner() {
-    return StreamBuilder<bool>(
-      stream: ConnectivityService().connectionStream,
-      initialData: ConnectivityService().isOnline,
-      builder: (context, connectivitySnapshot) {
-        final isOnline = connectivitySnapshot.data ?? false;
+    return Consumer<EventController>(
+      builder: (context, controller, child) {
+        final syncStream = controller.syncStatusStream;
         
-        // Si está offline, mostrar banner naranja
-        if (!isOnline) {
-          return _buildBanner(
-            color: Colors.orange.shade600,
-            icon: Icons.cloud_off,
-            text: 'Modo Offline',
-          );
-        }
-        
-        // Si está online, mostrar estado basado en sincronización
-        // Por ahora, mostrar "Sincronizado" por defecto cuando está online
-        return _buildBanner(
-          color: Colors.green.shade600,
-          icon: Icons.cloud_done,
-          text: 'Conectado - Sincronizado',
+        return StreamBuilder<bool>(
+          stream: ConnectivityService().connectionStream,
+          initialData: ConnectivityService().isOnline,
+          builder: (context, connectivitySnapshot) {
+            final isOnline = connectivitySnapshot.data ?? false;
+            
+            // Si está offline, mostrar banner naranja
+            if (!isOnline) {
+              return _buildBanner(
+                color: Colors.grey.shade700,
+                icon: Icons.cloud_off,
+                text: 'Modo Offline',
+              );
+            }
+            
+            // Si está online y hay sync stream, mostrar estado de sincronización
+            if (syncStream != null) {
+              return StreamBuilder<SyncStatus>(
+                stream: syncStream,
+                builder: (context, syncSnapshot) {
+                  final syncStatus = syncSnapshot.data ?? SyncStatus.idle;
+                  
+                  switch (syncStatus) {
+                    case SyncStatus.syncing:
+                      return _buildBanner(
+                        color: Colors.blue.shade600,
+                        icon: Icons.cloud_sync,
+                        text: 'Conectado - Sincronizando...',
+                      );
+                    case SyncStatus.synchronized:
+                      return _buildBanner(
+                        color: Colors.green.shade600,
+                        icon: Icons.cloud_done,
+                        text: 'Conectado - Sincronizado',
+                      );
+                    case SyncStatus.error:
+                      return _buildBanner(
+                        color: Colors.red.shade600,
+                        icon: Icons.cloud_off,
+                        text: 'Error de Sincronización',
+                      );
+                    case SyncStatus.idle:
+                      return _buildBanner(
+                        color: Colors.green.shade600,
+                        icon: Icons.cloud_done,
+                        text: 'Conectado - Sincronizado',
+                      );
+                  }
+                },
+              );
+            }
+            
+            // Fallback: mostrar sincronizado si está online sin stream
+            return _buildBanner(
+              color: Colors.green.shade600,
+              icon: Icons.cloud_done,
+              text: 'Conectado - Sincronizado',
+            );
+          },
         );
       },
     );
