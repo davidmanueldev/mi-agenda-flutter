@@ -12,6 +12,9 @@ enum SyncOperation {
   createTask,
   updateTask,
   deleteTask,
+  createPomodoroSession,
+  updatePomodoroSession,
+  deletePomodoroSession,
 }
 
 /// Item en cola de sincronización

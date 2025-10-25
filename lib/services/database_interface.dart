@@ -1,6 +1,7 @@
 import '../models/event.dart';
 import '../models/category.dart' as model;
 import '../models/task.dart';
+import '../models/pomodoro_session.dart';
 
 /// Interfaz común para servicios de base de datos
 /// Permite intercambiar entre SQLite, Firebase, o implementaciones híbridas
@@ -83,6 +84,35 @@ abstract class DatabaseInterface {
   
   /// Buscar tareas por texto
   Future<List<Task>> searchTasks(String query);
+  
+  // ==================== OPERACIONES DE POMODORO ====================
+  
+  /// Insertar una nueva sesión Pomodoro
+  Future<int> insertPomodoroSession(PomodoroSession session);
+  
+  /// Actualizar una sesión Pomodoro existente
+  Future<int> updatePomodoroSession(PomodoroSession session);
+  
+  /// Eliminar una sesión Pomodoro
+  Future<int> deletePomodoroSession(String id);
+  
+  /// Obtener todas las sesiones Pomodoro
+  Future<List<PomodoroSession>> getAllPomodoroSessions();
+  
+  /// Obtener sesión Pomodoro por ID
+  Future<PomodoroSession?> getPomodoroSessionById(String id);
+  
+  /// Obtener sesiones Pomodoro por rango de fechas
+  Future<List<PomodoroSession>> getPomodoroSessionsByDateRange(DateTime startDate, DateTime endDate);
+  
+  /// Obtener sesiones Pomodoro de hoy
+  Future<List<PomodoroSession>> getTodayPomodoroSessions();
+  
+  /// Obtener sesiones Pomodoro por tarea
+  Future<List<PomodoroSession>> getPomodoroSessionsByTask(String taskId);
+  
+  /// Obtener estadísticas de Pomodoro
+  Future<Map<String, dynamic>> getPomodoroStats();
   
   // ==================== OPERACIONES DE MANTENIMIENTO ====================
   

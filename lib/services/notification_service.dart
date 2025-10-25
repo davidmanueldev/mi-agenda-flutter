@@ -402,6 +402,16 @@ class NotificationService {
       description: 'Notificaciones que se muestran inmediatamente',
       importance: Importance.high,
     );
+    
+    // Canal para notificaciones de Pomodoro
+    const pomodoroChannel = AndroidNotificationChannel(
+      'pomodoro_notifications',
+      'Temporizador Pomodoro',
+      description: 'Notificaciones de sesiones Pomodoro completadas',
+      importance: Importance.max,
+      playSound: true,
+      enableVibration: true,
+    );
 
     final androidImplementation = _notificationsPlugin
         .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
@@ -410,6 +420,7 @@ class NotificationService {
     await androidImplementation?.createNotificationChannel(eventChannel);
     await androidImplementation?.createNotificationChannel(taskChannel);
     await androidImplementation?.createNotificationChannel(immediateChannel);
+    await androidImplementation?.createNotificationChannel(pomodoroChannel);
   }
 
   /// Limpiar recursos del servicio

@@ -4,6 +4,7 @@ import 'package:firebase_core/firebase_core.dart';
 import '../models/event.dart';
 import '../models/category.dart' as model;
 import '../models/task.dart';
+import '../models/pomodoro_session.dart';
 import '../firebase_options.dart';
 
 /// Servicio Firebase para gestión de datos en la nube
@@ -21,6 +22,7 @@ class FirebaseService {
   final CollectionReference _eventsCollection = FirebaseFirestore.instance.collection('events');
   final CollectionReference _categoriesCollection = FirebaseFirestore.instance.collection('categories');
   final CollectionReference _tasksCollection = FirebaseFirestore.instance.collection('tasks');
+  final CollectionReference _pomodoroCollection = FirebaseFirestore.instance.collection('pomodoro_sessions');
   
   // Instancia de Firebase Auth
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -637,6 +639,189 @@ class FirebaseService {
       return completedTasks.docs.length;
     } catch (e) {
       throw FirebaseServiceException('Error al limpiar tareas completadas: $e');
+    }
+  }
+  
+  // ==================== OPERACIONES DE SESIONES POMODORO ====================
+  
+  /// Crear una nueva sesión Pomodoro
+  Future<void> createPomodoroSession(PomodoroSession session) async {
+    await _ensureAuthenticated();
+    
+    try {
+      await _pomodoroCollection.doc(session.id).set(session.toJson());
+    } catch (e) {
+      throw FirebaseServiceException('Error al crear sesión Pomodoro: $e');
+    }
+  }
+  
+  /// Actualizar una sesión Pomodoro existente
+  Future<void> updatePomodoroSession(PomodoroSession session) async {
+    await _ensureAuthenticated();
+    
+    try {
+      await _pomodoroCollection.doc(session.id).update(session.toJson());
+    } catch (e) {
+      throw FirebaseServiceException('Error al actualizar sesión Pomodoro: $e');
+    }
+  }
+  
+  /// Eliminar una sesión Pomodoro
+  Future<void> deletePomodoroSession(String sessionId) async {
+    await _ensureAuthenticated();
+    
+    try {
+      await _pomodoroCollection.doc(sessionId).delete();
+    } catch (e) {
+      throw FirebaseServiceException('Error al eliminar sesión Pomodoro: $e');
+    }
+  }
+  
+  /// Obtener todas las sesiones Pomodoro del usuario actual
+  Future<List<PomodoroSession>> getAllPomodoroSessions() async {
+    await _ensureAuthenticated();
+    final userId = currentUserId!;
+    
+    try {
+      final snapshot = await _pomodoroCollection
+          .where('userId', isEqualTo: userId)
+          .orderBy('startTime', descending: true)
+          .get();
+      
+      return snapshot.docs
+          .map((doc) => PomodoroSession.fromJson(doc.data() as Map<String, dynamic>))
+          .toList();
+    } catch (e) {
+      throw FirebaseServiceException('Error al obtener sesiones Pomodoro: $e');
+    }
+  }
+  
+  /// Obtener sesión Pomodoro por ID
+  Future<PomodoroSession?> getPomodoroSessionById(String id) async {
+    await _ensureAuthenticated();
+    
+    try {
+      final doc = await _pomodoroCollection.doc(id).get();
+      
+      if (!doc.exists) return null;
+      return PomodoroSession.fromJson(doc.data() as Map<String, dynamic>);
+    } catch (e) {
+      throw FirebaseServiceException('Error al obtener sesión Pomodoro por ID: $e');
+    }
+  }
+  
+  /// Obtener sesiones Pomodoro por rango de fechas
+  Future<List<PomodoroSession>> getPomodoroSessionsByDateRange(
+    DateTime startDate,
+    DateTime endDate,
+  ) async {
+    await _ensureAuthenticated();
+    final userId = currentUserId!;
+    
+    try {
+      final snapshot = await _pomodoroCollection
+          .where('userId', isEqualTo: userId)
+          .where('startTime', isGreaterThanOrEqualTo: Timestamp.fromDate(startDate))
+          .where('startTime', isLessThanOrEqualTo: Timestamp.fromDate(endDate))
+          .orderBy('startTime', descending: true)
+          .get();
+      
+      return snapshot.docs
+          .map((doc) => PomodoroSession.fromJson(doc.data() as Map<String, dynamic>))
+          .toList();
+    } catch (e) {
+      throw FirebaseServiceException('Error al obtener sesiones Pomodoro por rango: $e');
+    }
+  }
+  
+  /// Obtener sesiones Pomodoro de hoy
+  Future<List<PomodoroSession>> getTodayPomodoroSessions() async {
+    final now = DateTime.now();
+    final startOfDay = DateTime(now.year, now.month, now.day);
+    final endOfDay = DateTime(now.year, now.month, now.day, 23, 59, 59);
+    
+    return await getPomodoroSessionsByDateRange(startOfDay, endOfDay);
+  }
+  
+  /// Obtener sesiones Pomodoro por tarea
+  Future<List<PomodoroSession>> getPomodoroSessionsByTask(String taskId) async {
+    await _ensureAuthenticated();
+    final userId = currentUserId!;
+    
+    try {
+      final snapshot = await _pomodoroCollection
+          .where('userId', isEqualTo: userId)
+          .where('taskId', isEqualTo: taskId)
+          .orderBy('startTime', descending: true)
+          .get();
+      
+      return snapshot.docs
+          .map((doc) => PomodoroSession.fromJson(doc.data() as Map<String, dynamic>))
+          .toList();
+    } catch (e) {
+      throw FirebaseServiceException('Error al obtener sesiones Pomodoro por tarea: $e');
+    }
+  }
+  
+  /// Stream de sesiones Pomodoro en tiempo real
+  Stream<List<PomodoroSession>> getPomodoroSessionsStream() {
+    final userId = currentUserId;
+    if (userId == null) {
+      return Stream.value([]);
+    }
+    
+    return _pomodoroCollection
+        .where('userId', isEqualTo: userId)
+        .orderBy('startTime', descending: true)
+        .snapshots()
+        .map((snapshot) => snapshot.docs
+            .map((doc) => PomodoroSession.fromJson(doc.data() as Map<String, dynamic>))
+            .toList());
+  }
+  
+  /// Obtener estadísticas de Pomodoro
+  Future<Map<String, dynamic>> getPomodoroStats() async {
+    await _ensureAuthenticated();
+    final userId = currentUserId!;
+    
+    try {
+      // Obtener todas las sesiones completadas
+      final allSessions = await _pomodoroCollection
+          .where('userId', isEqualTo: userId)
+          .where('endTime', isNull: false)
+          .get();
+      
+      final sessions = allSessions.docs
+          .map((doc) => PomodoroSession.fromJson(doc.data() as Map<String, dynamic>))
+          .toList();
+      
+      // Calcular estadísticas
+      final totalSessions = sessions.length;
+      final workSessions = sessions
+          .where((s) => s.sessionType == SessionType.work)
+          .length;
+      
+      final totalSeconds = sessions.fold<int>(
+        0,
+        (sum, session) => sum + session.duration,
+      );
+      final totalMinutes = totalSeconds ~/ 60;
+      
+      // Sesiones de hoy
+      final now = DateTime.now();
+      final startOfDay = DateTime(now.year, now.month, now.day);
+      final todaySessions = sessions
+          .where((s) => s.startTime.isAfter(startOfDay))
+          .length;
+      
+      return {
+        'totalSessions': totalSessions,
+        'workSessions': workSessions,
+        'totalMinutes': totalMinutes,
+        'todaySessions': todaySessions,
+      };
+    } catch (e) {
+      throw FirebaseServiceException('Error al obtener estadísticas Pomodoro: $e');
     }
   }
 }

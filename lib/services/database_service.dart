@@ -3,6 +3,7 @@ import 'package:path/path.dart';
 import '../models/event.dart';
 import '../models/category.dart' as model;
 import '../models/task.dart';
+import '../models/pomodoro_session.dart';
 import 'database_interface.dart';
 
 /// Servicio de base de datos para la gestión de persistencia
@@ -30,7 +31,7 @@ class DatabaseService implements DatabaseInterface {
 
     return await openDatabase(
       path,
-      version: 3, // Versión 3: Nuevos campos para tareas mejoradas
+      version: 4, // Versión 4: Tabla de sesiones Pomodoro
       onCreate: _createTables,
       onUpgrade: _upgradeDatabase,
     );
@@ -98,6 +99,27 @@ class DatabaseService implements DatabaseInterface {
     await db.execute('CREATE INDEX idx_tasks_status ON tasks(status)');
     await db.execute('CREATE INDEX idx_tasks_priority ON tasks(priority)');
     await db.execute('CREATE INDEX idx_tasks_category ON tasks(category)');
+    
+    // Tabla de sesiones Pomodoro
+    await db.execute('''
+      CREATE TABLE pomodoro_sessions (
+        id TEXT PRIMARY KEY,
+        userId TEXT NOT NULL,
+        sessionType TEXT NOT NULL,
+        duration INTEGER NOT NULL,
+        startTime INTEGER NOT NULL,
+        endTime INTEGER,
+        taskId TEXT,
+        createdAt INTEGER NOT NULL,
+        updatedAt INTEGER NOT NULL,
+        FOREIGN KEY (taskId) REFERENCES tasks (id) ON DELETE SET NULL
+      )
+    ''');
+    
+    // Índices para optimizar consultas de Pomodoro
+    await db.execute('CREATE INDEX idx_pomodoro_startTime ON pomodoro_sessions(startTime)');
+    await db.execute('CREATE INDEX idx_pomodoro_userId ON pomodoro_sessions(userId)');
+    await db.execute('CREATE INDEX idx_pomodoro_taskId ON pomodoro_sessions(taskId)');
   }
 
   /// Manejo de actualizaciones de esquema de base de datos
@@ -214,6 +236,28 @@ class DatabaseService implements DatabaseInterface {
       await db.execute('CREATE INDEX IF NOT EXISTS idx_tasks_category ON tasks(category)');
       await db.execute('CREATE INDEX IF NOT EXISTS idx_tasks_isMyDay ON tasks(isMyDay)');
       await db.execute('CREATE INDEX IF NOT EXISTS idx_tasks_recurrence ON tasks(recurrence)');
+    }
+    
+    // Migración de versión 3 a 4: Agregar tabla de sesiones Pomodoro
+    if (oldVersion < 4) {
+      await db.execute('''
+        CREATE TABLE pomodoro_sessions (
+          id TEXT PRIMARY KEY,
+          userId TEXT NOT NULL,
+          sessionType TEXT NOT NULL,
+          duration INTEGER NOT NULL,
+          startTime INTEGER NOT NULL,
+          endTime INTEGER,
+          taskId TEXT,
+          createdAt INTEGER NOT NULL,
+          updatedAt INTEGER NOT NULL,
+          FOREIGN KEY (taskId) REFERENCES tasks (id) ON DELETE SET NULL
+        )
+      ''');
+      
+      await db.execute('CREATE INDEX idx_pomodoro_startTime ON pomodoro_sessions(startTime)');
+      await db.execute('CREATE INDEX idx_pomodoro_userId ON pomodoro_sessions(userId)');
+      await db.execute('CREATE INDEX idx_pomodoro_taskId ON pomodoro_sessions(taskId)');
     }
   }
 
@@ -799,6 +843,181 @@ class DatabaseService implements DatabaseInterface {
     } catch (e) {
       print('❌ Error al verificar integridad: $e');
       return false;
+    }
+  }
+  
+  // ==================== OPERACIONES DE POMODORO ====================
+  
+  /// Insertar una nueva sesión Pomodoro
+  @override
+  Future<int> insertPomodoroSession(PomodoroSession session) async {
+    try {
+      final db = await database;
+      return await db.insert('pomodoro_sessions', session.toMap());
+    } catch (e) {
+      throw DatabaseException('Error al insertar sesión Pomodoro: $e');
+    }
+  }
+  
+  /// Actualizar una sesión Pomodoro existente
+  @override
+  Future<int> updatePomodoroSession(PomodoroSession session) async {
+    try {
+      final db = await database;
+      return await db.update(
+        'pomodoro_sessions',
+        session.toMap(),
+        where: 'id = ?',
+        whereArgs: [session.id],
+      );
+    } catch (e) {
+      throw DatabaseException('Error al actualizar sesión Pomodoro: $e');
+    }
+  }
+  
+  /// Eliminar una sesión Pomodoro
+  @override
+  Future<int> deletePomodoroSession(String id) async {
+    try {
+      final db = await database;
+      return await db.delete(
+        'pomodoro_sessions',
+        where: 'id = ?',
+        whereArgs: [id],
+      );
+    } catch (e) {
+      throw DatabaseException('Error al eliminar sesión Pomodoro: $e');
+    }
+  }
+  
+  /// Obtener todas las sesiones Pomodoro
+  @override
+  Future<List<PomodoroSession>> getAllPomodoroSessions() async {
+    try {
+      final db = await database;
+      final List<Map<String, dynamic>> maps = await db.query(
+        'pomodoro_sessions',
+        orderBy: 'startTime DESC',
+      );
+      return maps.map((map) => PomodoroSession.fromMap(map)).toList();
+    } catch (e) {
+      throw DatabaseException('Error al obtener sesiones Pomodoro: $e');
+    }
+  }
+  
+  /// Obtener sesión Pomodoro por ID
+  @override
+  Future<PomodoroSession?> getPomodoroSessionById(String id) async {
+    try {
+      final db = await database;
+      final List<Map<String, dynamic>> maps = await db.query(
+        'pomodoro_sessions',
+        where: 'id = ?',
+        whereArgs: [id],
+      );
+      
+      if (maps.isEmpty) return null;
+      return PomodoroSession.fromMap(maps.first);
+    } catch (e) {
+      throw DatabaseException('Error al obtener sesión Pomodoro por ID: $e');
+    }
+  }
+  
+  /// Obtener sesiones Pomodoro por rango de fechas
+  @override
+  Future<List<PomodoroSession>> getPomodoroSessionsByDateRange(
+    DateTime startDate,
+    DateTime endDate,
+  ) async {
+    try {
+      final db = await database;
+      final startMillis = startDate.millisecondsSinceEpoch;
+      final endMillis = endDate.millisecondsSinceEpoch;
+      
+      final List<Map<String, dynamic>> maps = await db.query(
+        'pomodoro_sessions',
+        where: 'startTime >= ? AND startTime <= ?',
+        whereArgs: [startMillis, endMillis],
+        orderBy: 'startTime DESC',
+      );
+      
+      return maps.map((map) => PomodoroSession.fromMap(map)).toList();
+    } catch (e) {
+      throw DatabaseException('Error al obtener sesiones Pomodoro por rango: $e');
+    }
+  }
+  
+  /// Obtener sesiones Pomodoro de hoy
+  @override
+  Future<List<PomodoroSession>> getTodayPomodoroSessions() async {
+    final now = DateTime.now();
+    final startOfDay = DateTime(now.year, now.month, now.day);
+    final endOfDay = DateTime(now.year, now.month, now.day, 23, 59, 59);
+    
+    return await getPomodoroSessionsByDateRange(startOfDay, endOfDay);
+  }
+  
+  /// Obtener sesiones Pomodoro por tarea
+  @override
+  Future<List<PomodoroSession>> getPomodoroSessionsByTask(String taskId) async {
+    try {
+      final db = await database;
+      final List<Map<String, dynamic>> maps = await db.query(
+        'pomodoro_sessions',
+        where: 'taskId = ?',
+        whereArgs: [taskId],
+        orderBy: 'startTime DESC',
+      );
+      
+      return maps.map((map) => PomodoroSession.fromMap(map)).toList();
+    } catch (e) {
+      throw DatabaseException('Error al obtener sesiones Pomodoro por tarea: $e');
+    }
+  }
+  
+  /// Obtener estadísticas de Pomodoro
+  @override
+  Future<Map<String, dynamic>> getPomodoroStats() async {
+    try {
+      final db = await database;
+      
+      // Total de sesiones
+      final totalResult = await db.rawQuery(
+        'SELECT COUNT(*) as count FROM pomodoro_sessions WHERE endTime IS NOT NULL'
+      );
+      final totalSessions = Sqflite.firstIntValue(totalResult) ?? 0;
+      
+      // Sesiones de trabajo completadas
+      final workResult = await db.rawQuery(
+        "SELECT COUNT(*) as count FROM pomodoro_sessions WHERE sessionType = ? AND endTime IS NOT NULL",
+        [SessionType.work.toString()],
+      );
+      final workSessions = Sqflite.firstIntValue(workResult) ?? 0;
+      
+      // Tiempo total en minutos
+      final timeResult = await db.rawQuery(
+        'SELECT SUM(duration) as total FROM pomodoro_sessions WHERE endTime IS NOT NULL'
+      );
+      final totalSeconds = Sqflite.firstIntValue(timeResult) ?? 0;
+      final totalMinutes = totalSeconds ~/ 60;
+      
+      // Sesiones de hoy
+      final now = DateTime.now();
+      final startOfDay = DateTime(now.year, now.month, now.day).millisecondsSinceEpoch;
+      final todayResult = await db.rawQuery(
+        'SELECT COUNT(*) as count FROM pomodoro_sessions WHERE startTime >= ? AND endTime IS NOT NULL',
+        [startOfDay],
+      );
+      final todaySessions = Sqflite.firstIntValue(todayResult) ?? 0;
+      
+      return {
+        'totalSessions': totalSessions,
+        'workSessions': workSessions,
+        'totalMinutes': totalMinutes,
+        'todaySessions': todaySessions,
+      };
+    } catch (e) {
+      throw DatabaseException('Error al obtener estadísticas Pomodoro: $e');
     }
   }
 }

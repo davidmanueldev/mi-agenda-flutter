@@ -8,6 +8,7 @@ import 'add_edit_event_screen.dart';
 import 'event_detail_screen.dart';
 import 'list_categories_screen.dart';
 import 'task_list_screen.dart';
+import 'pomodoro_screen.dart';
 import '../widgets/event_card.dart';
 import '../widgets/custom_app_bar.dart';
 
@@ -387,6 +388,19 @@ class _HomeScreenState extends State<HomeScreen> {
                 context,
                 MaterialPageRoute(
                   builder: (context) => const TaskListScreen(),
+                ),
+              );
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.timer),
+            title: const Text('Pomodoro'),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const PomodoroScreen(),
                 ),
               );
             },

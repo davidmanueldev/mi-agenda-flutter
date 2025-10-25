@@ -2,6 +2,7 @@ import 'dart:async';
 import '../models/event.dart';
 import '../models/category.dart' as model;
 import '../models/task.dart';
+import '../models/pomodoro_session.dart';
 import 'firebase_service.dart';
 import 'database_service.dart';
 import 'database_interface.dart';
@@ -31,6 +32,7 @@ class DatabaseServiceHybridV2 implements DatabaseInterface {
   StreamSubscription? _eventsSubscription;
   StreamSubscription? _categoriesSubscription;
   StreamSubscription? _tasksSubscription;
+  StreamSubscription? _pomodoroSubscription;
   
   bool _isOnline = false;
   bool _isSyncing = false;
@@ -109,6 +111,18 @@ class DatabaseServiceHybridV2 implements DatabaseInterface {
       },
       onError: (error) {
         print('❌ ERROR EN STREAM DE TAREAS: $error');
+        print('⚠️  SI VES "failed-precondition" o "requires an index", EL ÍNDICE NO ESTÁ FUNCIONANDO');
+      },
+    );
+    
+    // Listener para sesiones Pomodoro
+    _pomodoroSubscription = _firebaseService.getPomodoroSessionsStream().listen(
+      (sessions) {
+        print('✅ POMODORO LISTENER: Recibidas ${sessions.length} sesiones de Firebase');
+        _syncPomodoroToLocal(sessions);
+      },
+      onError: (error) {
+        print('❌ ERROR EN STREAM DE POMODORO: $error');
         print('⚠️  SI VES "failed-precondition" o "requires an index", EL ÍNDICE NO ESTÁ FUNCIONANDO');
       },
     );
@@ -321,6 +335,82 @@ class DatabaseServiceHybridV2 implements DatabaseInterface {
            firebase.updatedAt.isAfter(local.updatedAt);
   }
   
+  /// Sincronizar sesiones Pomodoro de Firebase a SQLite
+  Future<void> _syncPomodoroToLocal(List<PomodoroSession> firebaseSessions) async {
+    try {
+      print('🔄 ✅ POMODORO INDEX WORKING: Iniciando sincronización de sesiones...');
+      print('📦 ✅ POMODORO: Sesiones en Firebase: ${firebaseSessions.length}');
+      
+      _updateSyncStatus(SyncStatus.syncing);
+      bool hasChanges = false;
+      
+      final localSessions = await _localService.getAllPomodoroSessions();
+      final localSessionsMap = {for (var s in localSessions) s.id: s};
+      
+      print('📱 ✅ POMODORO: Sesiones locales: ${localSessions.length}');
+      
+      // Actualizar o insertar sesiones de Firebase en SQLite
+      for (final firebaseSession in firebaseSessions) {
+        final localSession = localSessionsMap[firebaseSession.id];
+        
+        if (localSession == null) {
+          // No existe localmente, insertar
+          await _localService.insertPomodoroSession(firebaseSession);
+          print('✅ Nueva sesión Pomodoro desde Firebase: ${firebaseSession.sessionType}');
+          hasChanges = true;
+        } else if (_hasPomodoroSessionChanged(localSession, firebaseSession)) {
+          // Detectar si hay diferencias en el contenido
+          await _localService.updatePomodoroSession(firebaseSession);
+          print('🔄 Sesión Pomodoro actualizada desde Firebase: ${firebaseSession.sessionType}');
+          hasChanges = true;
+        }
+        
+        localSessionsMap.remove(firebaseSession.id);
+      }
+      
+      // Las sesiones que quedaron en el map local no están en Firebase
+      // Esto significa que fueron borradas en Firebase
+      for (final orphanSession in localSessionsMap.values) {
+        await _localService.deletePomodoroSession(orphanSession.id);
+        print('🗑️ Eliminada sesión Pomodoro desde Firebase');
+        hasChanges = true;
+      }
+      
+      // Limpiar operaciones obsoletas de createPomodoroSession del queue
+      if (firebaseSessions.isNotEmpty) {
+        print('🔍 Firebase tiene ${firebaseSessions.length} sesiones. Limpiando operaciones de creación local obsoletas...');
+        final queue = _syncQueue.getQueue();
+        for (final item in queue) {
+          if (item.operation == SyncOperation.createPomodoroSession) {
+            await _syncQueue.removeFromQueue(item.id);
+            print('🧹 Limpiada operación de createPomodoroSession obsoleta del queue');
+          }
+        }
+      }
+      
+      // Notificar cambios al UI
+      if (hasChanges && onDataChanged != null) {
+        onDataChanged!();
+      }
+      
+      _updateSyncStatus(SyncStatus.synchronized);
+      
+    } catch (e) {
+      print('Error sincronizando sesiones Pomodoro Firebase -> Local: $e');
+      _updateSyncStatus(SyncStatus.error);
+    }
+  }
+  
+  /// Verificar si una sesión Pomodoro cambió
+  bool _hasPomodoroSessionChanged(PomodoroSession local, PomodoroSession firebase) {
+    return local.sessionType != firebase.sessionType ||
+           local.duration != firebase.duration ||
+           local.startTime != firebase.startTime ||
+           local.endTime != firebase.endTime ||
+           local.taskId != firebase.taskId ||
+           firebase.updatedAt.isAfter(local.updatedAt);
+  }
+  
   /// Sincronizar operaciones pendientes cuando hay conexión
   Future<void> _syncPendingOperations() async {
     if (_isSyncing || !_isOnline) return;
@@ -375,6 +465,20 @@ class DatabaseServiceHybridV2 implements DatabaseInterface {
               
             case SyncOperation.deleteTask:
               await _firebaseService.deleteTask(item.data['id']);
+              break;
+              
+            case SyncOperation.createPomodoroSession:
+              final session = PomodoroSession.fromMap(item.data);
+              await _firebaseService.createPomodoroSession(session);
+              break;
+              
+            case SyncOperation.updatePomodoroSession:
+              final session = PomodoroSession.fromMap(item.data);
+              await _firebaseService.updatePomodoroSession(session);
+              break;
+              
+            case SyncOperation.deletePomodoroSession:
+              await _firebaseService.deletePomodoroSession(item.data['id']);
               break;
           }
           
@@ -782,6 +886,118 @@ class DatabaseServiceHybridV2 implements DatabaseInterface {
     if (_isOnline) {
       await _syncPendingOperations();
     }
+  }
+  
+  // ==================== OPERACIONES DE POMODORO ====================
+  
+  @override
+  Future<int> insertPomodoroSession(PomodoroSession session) async {
+    // Guardar primero en SQLite
+    final result = await _localService.insertPomodoroSession(session);
+    
+    // Intentar sincronizar con Firebase
+    if (_isOnline) {
+      try {
+        await _firebaseService.createPomodoroSession(session);
+      } catch (e) {
+        // Si falla, agregar a cola
+        await _syncQueue.addToQueue(
+          SyncOperation.createPomodoroSession,
+          session.toMap(),
+        );
+      }
+    } else {
+      // Sin conexión, agregar a cola
+      await _syncQueue.addToQueue(
+        SyncOperation.createPomodoroSession,
+        session.toMap(),
+      );
+    }
+    
+    return result;
+  }
+  
+  @override
+  Future<int> updatePomodoroSession(PomodoroSession session) async {
+    // Actualizar en SQLite
+    final result = await _localService.updatePomodoroSession(session);
+    
+    // Intentar sincronizar con Firebase
+    if (_isOnline) {
+      try {
+        await _firebaseService.updatePomodoroSession(session);
+      } catch (e) {
+        await _syncQueue.addToQueue(
+          SyncOperation.updatePomodoroSession,
+          session.toMap(),
+        );
+      }
+    } else {
+      await _syncQueue.addToQueue(
+        SyncOperation.updatePomodoroSession,
+        session.toMap(),
+      );
+    }
+    
+    return result;
+  }
+  
+  @override
+  Future<int> deletePomodoroSession(String id) async {
+    // Eliminar de SQLite
+    final result = await _localService.deletePomodoroSession(id);
+    
+    // Intentar sincronizar con Firebase
+    if (_isOnline) {
+      try {
+        await _firebaseService.deletePomodoroSession(id);
+      } catch (e) {
+        await _syncQueue.addToQueue(
+          SyncOperation.deletePomodoroSession,
+          {'id': id},
+        );
+      }
+    } else {
+      await _syncQueue.addToQueue(
+        SyncOperation.deletePomodoroSession,
+        {'id': id},
+      );
+    }
+    
+    return result;
+  }
+  
+  @override
+  Future<List<PomodoroSession>> getAllPomodoroSessions() async {
+    return await _localService.getAllPomodoroSessions();
+  }
+  
+  @override
+  Future<PomodoroSession?> getPomodoroSessionById(String id) async {
+    return await _localService.getPomodoroSessionById(id);
+  }
+  
+  @override
+  Future<List<PomodoroSession>> getPomodoroSessionsByDateRange(
+    DateTime startDate,
+    DateTime endDate,
+  ) async {
+    return await _localService.getPomodoroSessionsByDateRange(startDate, endDate);
+  }
+  
+  @override
+  Future<List<PomodoroSession>> getTodayPomodoroSessions() async {
+    return await _localService.getTodayPomodoroSessions();
+  }
+  
+  @override
+  Future<List<PomodoroSession>> getPomodoroSessionsByTask(String taskId) async {
+    return await _localService.getPomodoroSessionsByTask(taskId);
+  }
+  
+  @override
+  Future<Map<String, dynamic>> getPomodoroStats() async {
+    return await _localService.getPomodoroStats();
   }
   
   /// Obtener estado de sincronización
