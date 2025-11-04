@@ -6,6 +6,7 @@ import '../models/category.dart' as model;
 import '../models/task.dart';
 import '../models/pomodoro_session.dart';
 import '../models/task_template.dart';
+import '../models/user_profile.dart';
 import '../firebase_options.dart';
 
 /// Servicio Firebase para gestión de datos en la nube
@@ -36,28 +37,23 @@ class FirebaseService {
         options: DefaultFirebaseOptions.currentPlatform,
       );
       
-      // Autenticación anónima para simplicidad
-      final FirebaseService service = FirebaseService();
-      await service._ensureAuthenticated();
+      print('✅ Firebase inicializado correctamente');
+      // NO hacer autenticación automática - dejar que AuthController maneje esto
     } catch (e) {
-      print('Error al inicializar Firebase: $e');
+      print('❌ Error al inicializar Firebase: $e');
       // En modo development, continuar sin Firebase
       rethrow;
     }
   }
 
   /// Asegurar que el usuario esté autenticado
+  /// IMPORTANTE: Este método ya NO hace login anónimo automático
+  /// Solo verifica si hay un usuario autenticado
   Future<void> _ensureAuthenticated() async {
     if (_auth.currentUser == null) {
-      try {
-        // Intentar autenticación anónima primero para simplicidad
-        await _auth.signInAnonymously();
-        print('Usuario autenticado anónimamente: ${_auth.currentUser?.uid}');
-      } catch (e) {
-        // Si falla anónima, podemos implementar email/password después
-        print('Autenticación anónima falló: $e');
-        throw FirebaseServiceException('Error en autenticación: $e');
-      }
+      throw FirebaseServiceException(
+        'No hay usuario autenticado. Por favor inicia sesión primero.'
+      );
     }
   }
 
@@ -96,6 +92,230 @@ class FirebaseService {
       print('Usuario cerró sesión');
     } catch (e) {
       throw FirebaseServiceException('Error al cerrar sesión: $e');
+    }
+  }
+
+  // ==================== MÉTODOS DE AUTENTICACIÓN MEJORADOS ====================
+
+  /// Registrar nuevo usuario con email y contraseña
+  Future<UserProfile?> signUp({
+    required String email,
+    required String password,
+    String? displayName,
+  }) async {
+    try {
+      final credential = await _auth.createUserWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+
+      if (credential.user == null) return null;
+
+      // Actualizar displayName si se proporcionó
+      if (displayName != null && displayName.isNotEmpty) {
+        await credential.user!.updateDisplayName(displayName);
+        await credential.user!.reload();
+      }
+
+      final user = await _getCurrentUserFromFirebaseUser(credential.user!);
+      
+      // Guardar en colección users
+      if (user != null) {
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.id)
+            .set(user.toJson());
+      }
+
+      print('✅ Usuario registrado: ${user?.email}');
+      return user;
+    } on FirebaseAuthException catch (e) {
+      print('❌ Error de autenticación: ${e.code} - ${e.message}');
+      throw FirebaseServiceException(_getAuthErrorMessage(e.code));
+    } catch (e) {
+      print('❌ Error al registrar usuario: $e');
+      throw FirebaseServiceException('Error al registrar usuario: $e');
+    }
+  }
+
+  /// Iniciar sesión con email y contraseña
+  Future<UserProfile?> signIn({
+    required String email,
+    required String password,
+  }) async {
+    try {
+      final credential = await _auth.signInWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+
+      if (credential.user == null) return null;
+
+      final user = await _getCurrentUserFromFirebaseUser(credential.user!);
+      
+      // Actualizar lastLoginAt
+      if (user != null) {
+        final updatedUser = user.copyWith(
+          lastLoginAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        );
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.id)
+            .update({'last_login_at': Timestamp.fromDate(updatedUser.lastLoginAt)});
+        
+        print('✅ Usuario autenticado: ${user.email}');
+        return updatedUser;
+      }
+
+      return user;
+    } on FirebaseAuthException catch (e) {
+      print('❌ Error de autenticación: ${e.code} - ${e.message}');
+      throw FirebaseServiceException(_getAuthErrorMessage(e.code));
+    } catch (e) {
+      print('❌ Error al iniciar sesión: $e');
+      throw FirebaseServiceException('Error al iniciar sesión: $e');
+    }
+  }
+
+  /// Obtener usuario actual
+  Future<UserProfile?> getCurrentUser() async {
+    try {
+      final firebaseUser = _auth.currentUser;
+      
+      if (firebaseUser == null) {
+        print('🔍 getCurrentUser: No hay usuario en Firebase Auth');
+        return null;
+      }
+
+      // Verificar si es usuario anónimo
+      if (firebaseUser.isAnonymous) {
+        print('⚠️  Usuario anónimo detectado, cerrando sesión...');
+        await _auth.signOut();
+        return null;
+      }
+
+      print('🔍 getCurrentUser: Usuario Firebase encontrado: ${firebaseUser.email} (UID: ${firebaseUser.uid})');
+      return await _getCurrentUserFromFirebaseUser(firebaseUser);
+    } catch (e) {
+      print('❌ Error al obtener usuario actual: $e');
+      return null;
+    }
+  }
+
+  /// Enviar email de recuperación de contraseña
+  Future<void> resetPassword(String email) async {
+    try {
+      await _auth.sendPasswordResetEmail(email: email);
+      print('✅ Email de recuperación enviado a: $email');
+    } on FirebaseAuthException catch (e) {
+      print('❌ Error al enviar email: ${e.code} - ${e.message}');
+      throw FirebaseServiceException(_getAuthErrorMessage(e.code));
+    } catch (e) {
+      print('❌ Error al enviar email de recuperación: $e');
+      throw FirebaseServiceException('Error al enviar email: $e');
+    }
+  }
+
+  /// Actualizar perfil de usuario
+  Future<UserProfile?> updateUserProfile({
+    String? displayName,
+    String? photoURL,
+  }) async {
+    try {
+      final firebaseUser = _auth.currentUser;
+      if (firebaseUser == null) return null;
+
+      if (displayName != null) {
+        await firebaseUser.updateDisplayName(displayName);
+      }
+      if (photoURL != null) {
+        await firebaseUser.updatePhotoURL(photoURL);
+      }
+
+      await firebaseUser.reload();
+      final updatedFirebaseUser = _auth.currentUser;
+      if (updatedFirebaseUser == null) return null;
+
+      final user = await _getCurrentUserFromFirebaseUser(updatedFirebaseUser);
+      
+      // Actualizar en Firestore
+      if (user != null) {
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.id)
+            .update({
+          'display_name': displayName,
+          'photo_url': photoURL,
+          'updated_at': Timestamp.fromDate(DateTime.now()),
+        });
+      }
+
+      print('✅ Perfil actualizado');
+      return user;
+    } catch (e) {
+      print('❌ Error al actualizar perfil: $e');
+      throw FirebaseServiceException('Error al actualizar perfil: $e');
+    }
+  }
+
+  /// Convertir Firebase User a UserProfile
+  Future<UserProfile?> _getCurrentUserFromFirebaseUser(User firebaseUser) async {
+    try {
+      // Intentar obtener de Firestore primero
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(firebaseUser.uid)
+          .get();
+
+      if (doc.exists) {
+        return UserProfile.fromJson(doc.data()!);
+      }
+
+      // Si no existe en Firestore, crear desde Firebase User
+      final now = DateTime.now();
+      final user = UserProfile(
+        id: firebaseUser.uid,
+        email: firebaseUser.email ?? '',
+        displayName: firebaseUser.displayName,
+        photoURL: firebaseUser.photoURL,
+        createdAt: firebaseUser.metadata.creationTime ?? now,
+        lastLoginAt: now,
+        updatedAt: now,
+      );
+
+      // Guardar en Firestore
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.id)
+          .set(user.toJson());
+
+      return user;
+    } catch (e) {
+      print('❌ Error al convertir usuario: $e');
+      return null;
+    }
+  }
+
+  /// Obtener mensaje de error amigable
+  String _getAuthErrorMessage(String code) {
+    switch (code) {
+      case 'email-already-in-use':
+        return 'Este email ya está registrado';
+      case 'invalid-email':
+        return 'Email inválido';
+      case 'weak-password':
+        return 'La contraseña es muy débil (mínimo 6 caracteres)';
+      case 'user-not-found':
+        return 'Usuario no encontrado';
+      case 'wrong-password':
+        return 'Contraseña incorrecta';
+      case 'user-disabled':
+        return 'Usuario deshabilitado';
+      case 'too-many-requests':
+        return 'Demasiados intentos. Intenta más tarde';
+      default:
+        return 'Error de autenticación: $code';
     }
   }
 

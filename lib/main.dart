@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'controllers/auth_controller.dart';
 import 'controllers/event_controller.dart';
 import 'controllers/task_controller.dart';
 import 'controllers/category_controller.dart';
@@ -9,6 +10,7 @@ import 'services/database_service.dart';
 import 'services/database_service_hybrid_v2.dart';
 import 'services/firebase_service.dart';
 import 'services/notification_service.dart';
+import 'views/splash_screen.dart';
 import 'views/main_screen.dart';
 
 /// Punto de entrada de la aplicación Mi Agenda
@@ -59,34 +61,43 @@ class MiAgendaApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        // Provider para el controlador de eventos con inyección de dependencias
+        // Controlador de autenticación (debe ir PRIMERO)
+        ChangeNotifierProvider(
+          create: (context) => AuthController(),
+        ),
+        
+        // Controlador de eventos con servicio híbrido
         ChangeNotifierProvider(
           create: (context) => EventController(
             databaseService: DatabaseServiceHybridV2(),
             notificationService: NotificationService(),
           ),
         ),
-        // Provider para el controlador de tareas con inyección de dependencias
+        
+        // Controlador de categorías con servicio híbrido
+        ChangeNotifierProvider(
+          create: (context) => CategoryController(
+            databaseService: DatabaseServiceHybridV2(),
+          ),
+        ),
+        
+        // Controlador de tareas con servicio híbrido
         ChangeNotifierProvider(
           create: (context) => TaskController(
             databaseService: DatabaseServiceHybridV2(),
             notificationService: NotificationService(),
           ),
         ),
-        // Provider para el controlador de categorías
-        ChangeNotifierProvider(
-          create: (context) => CategoryController(
-            databaseService: DatabaseServiceHybridV2(),
-          ),
-        ),
-        // Provider para el controlador de Pomodoro
+        
+        // Controlador de Pomodoro con servicio híbrido
         ChangeNotifierProvider(
           create: (context) => PomodoroController(
             databaseService: DatabaseServiceHybridV2(),
             notificationService: NotificationService(),
           ),
         ),
-        // Provider para el controlador de Templates
+        
+        // Controlador de plantillas con servicio híbrido
         ChangeNotifierProvider(
           create: (context) => TemplateController(
             databaseService: DatabaseServiceHybridV2(),
@@ -102,8 +113,8 @@ class MiAgendaApp extends StatelessWidget {
         darkTheme: _buildDarkTheme(),
         themeMode: ThemeMode.system,
         
-        // Pantalla inicial con navegación
-        home: const MainScreen(),
+        // Pantalla inicial con navegación (SplashScreen verifica sesión)
+        home: const SplashScreen(),
         
         // Configuración de navegación y rutas
         onGenerateRoute: _generateRoute,

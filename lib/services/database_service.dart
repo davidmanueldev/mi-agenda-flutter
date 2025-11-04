@@ -5,6 +5,7 @@ import '../models/category.dart' as model;
 import '../models/task.dart';
 import '../models/pomodoro_session.dart';
 import '../models/task_template.dart';
+import '../models/user_profile.dart';
 import 'database_interface.dart';
 
 /// Servicio de base de datos para la gestión de persistencia
@@ -32,7 +33,7 @@ class DatabaseService implements DatabaseInterface {
 
     return await openDatabase(
       path,
-      version: 6, // Versión 6: Tabla de task_templates
+      version: 7, // Versión 7: Tabla de users para autenticación
       onCreate: _createTables,
       onUpgrade: _upgradeDatabase,
     );
@@ -143,6 +144,22 @@ class DatabaseService implements DatabaseInterface {
     
     // Índice para optimizar consultas de templates
     await db.execute('CREATE INDEX idx_templates_userId ON task_templates(user_id)');
+    
+    // Tabla de usuarios (v7)
+    await db.execute('''
+      CREATE TABLE users (
+        id TEXT PRIMARY KEY,
+        email TEXT NOT NULL UNIQUE,
+        display_name TEXT,
+        photo_url TEXT,
+        created_at INTEGER NOT NULL,
+        last_login_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      )
+    ''');
+    
+    // Índice para optimizar búsquedas por email
+    await db.execute('CREATE INDEX idx_users_email ON users(email)');
   }
 
   /// Manejo de actualizaciones de esquema de base de datos
@@ -319,6 +336,104 @@ class DatabaseService implements DatabaseInterface {
       ''');
       
       await db.execute('CREATE INDEX idx_templates_userId ON task_templates(user_id)');
+    }
+    
+    // Migración de versión 6 a 7: Agregar tabla de usuarios
+    if (oldVersion < 7) {
+      await db.execute('''
+        CREATE TABLE users (
+          id TEXT PRIMARY KEY,
+          email TEXT NOT NULL UNIQUE,
+          display_name TEXT,
+          photo_url TEXT,
+          created_at INTEGER NOT NULL,
+          last_login_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL
+        )
+      ''');
+      
+      await db.execute('CREATE INDEX idx_users_email ON users(email)');
+    }
+  }
+
+  // ==================== OPERACIONES DE USUARIOS ====================
+
+  /// Insertar un nuevo usuario
+  Future<int> insertUser(UserProfile user) async {
+    try {
+      final db = await database;
+      return await db.insert(
+        'users',
+        user.toMap(),
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+    } catch (e) {
+      throw DatabaseException('Error al insertar usuario: $e');
+    }
+  }
+
+  /// Actualizar o insertar usuario (upsert)
+  Future<int> upsertUser(UserProfile user) async {
+    try {
+      final db = await database;
+      return await db.insert(
+        'users',
+        user.toMap(),
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+    } catch (e) {
+      throw DatabaseException('Error al actualizar usuario: $e');
+    }
+  }
+
+  /// Obtener usuario por ID
+  Future<UserProfile?> getUserById(String userId) async {
+    try {
+      final db = await database;
+      final result = await db.query(
+        'users',
+        where: 'id = ?',
+        whereArgs: [userId],
+        limit: 1,
+      );
+
+      if (result.isEmpty) return null;
+      return UserProfile.fromMap(result.first);
+    } catch (e) {
+      throw DatabaseException('Error al obtener usuario: $e');
+    }
+  }
+
+  /// Actualizar último login del usuario
+  Future<int> updateUserLastLogin(String userId) async {
+    try {
+      final db = await database;
+      final now = DateTime.now().millisecondsSinceEpoch;
+      return await db.update(
+        'users',
+        {
+          'last_login_at': now,
+          'updated_at': now,
+        },
+        where: 'id = ?',
+        whereArgs: [userId],
+      );
+    } catch (e) {
+      throw DatabaseException('Error al actualizar last login: $e');
+    }
+  }
+
+  /// Eliminar usuario
+  Future<int> deleteUser(String userId) async {
+    try {
+      final db = await database;
+      return await db.delete(
+        'users',
+        where: 'id = ?',
+        whereArgs: [userId],
+      );
+    } catch (e) {
+      throw DatabaseException('Error al eliminar usuario: $e');
     }
   }
 
