@@ -30,6 +30,20 @@ class DatabaseServiceHybridV2 implements DatabaseInterface {
   final ConnectivityService _connectivityService = ConnectivityService();
   final SyncQueueService _syncQueue = SyncQueueService();
   
+  /// Obtener el ID del usuario actual de Firebase Auth
+  String? get _currentUserId => _firebaseService.currentUserId;
+  
+  /// Getter público para que los controllers puedan acceder al userId
+  @override
+  String? get currentUserId => _currentUserId;
+  
+  /// Validar que hay un usuario autenticado
+  void _ensureAuthenticated() {
+    if (_currentUserId == null) {
+      throw Exception('⚠️  No hay usuario autenticado. Debes iniciar sesión primero.');
+    }
+  }
+  
   StreamSubscription? _connectivitySubscription;
   StreamSubscription? _eventsSubscription;
   StreamSubscription? _categoriesSubscription;
@@ -567,8 +581,13 @@ class DatabaseServiceHybridV2 implements DatabaseInterface {
   
   @override
   Future<List<Event>> getAllEvents() async {
+    _ensureAuthenticated();
+    
     // SIEMPRE leer de SQLite (más rápido y funciona offline)
-    return await _localService.getAllEvents();
+    final allEvents = await _localService.getAllEvents();
+    
+    // Filtrar solo los eventos del usuario actual
+    return allEvents.where((event) => event.userId == _currentUserId).toList();
   }
   
   @override
@@ -621,22 +640,46 @@ class DatabaseServiceHybridV2 implements DatabaseInterface {
   
   @override
   Future<List<Event>> getEventsByDate(DateTime date) async {
-    return await _localService.getEventsByDate(date);
+    _ensureAuthenticated();
+    
+    final events = await _localService.getEventsByDate(date);
+    
+    // Filtrar solo los eventos del usuario actual
+    return events.where((event) => event.userId == _currentUserId).toList();
   }
   
   @override
   Future<List<Event>> getEventsByDateRange(DateTime startDate, DateTime endDate) async {
-    return await _localService.getEventsByDateRange(startDate, endDate);
+    _ensureAuthenticated();
+    
+    final events = await _localService.getEventsByDateRange(startDate, endDate);
+    
+    // Filtrar solo los eventos del usuario actual
+    return events.where((event) => event.userId == _currentUserId).toList();
   }
   
   @override
   Future<Event?> getEventById(String id) async {
-    return await _localService.getEventById(id);
+    _ensureAuthenticated();
+    
+    final event = await _localService.getEventById(id);
+    
+    // Verificar que el evento pertenece al usuario actual
+    if (event != null && event.userId != _currentUserId) {
+      return null; // No tiene permiso para ver este evento
+    }
+    
+    return event;
   }
   
   @override
   Future<List<Event>> searchEvents(String query) async {
-    return await _localService.searchEvents(query);
+    _ensureAuthenticated();
+    
+    final events = await _localService.searchEvents(query);
+    
+    // Filtrar solo los eventos del usuario actual
+    return events.where((event) => event.userId == _currentUserId).toList();
   }
   
   // ==================== OPERACIONES DE CATEGORÍAS ====================
@@ -683,12 +726,30 @@ class DatabaseServiceHybridV2 implements DatabaseInterface {
   
   @override
   Future<List<model.Category>> getAllCategories() async {
-    return await _localService.getAllCategories();
+    _ensureAuthenticated();
+    
+    final allCategories = await _localService.getAllCategories();
+    
+    // Filtrar: categorías del usuario actual + categorías del sistema (userId == null)
+    return allCategories.where((category) => 
+      category.userId == null || category.userId == _currentUserId
+    ).toList();
   }
   
   @override
   Future<model.Category?> getCategoryById(String id) async {
-    return await _localService.getCategoryById(id);
+    _ensureAuthenticated();
+    
+    final category = await _localService.getCategoryById(id);
+    
+    // Verificar que la categoría pertenece al usuario o es del sistema
+    if (category != null && 
+        category.userId != null && 
+        category.userId != _currentUserId) {
+      return null; // No tiene permiso para ver esta categoría
+    }
+    
+    return category;
   }
   
   @override
@@ -781,49 +842,93 @@ class DatabaseServiceHybridV2 implements DatabaseInterface {
   /// Obtener todas las tareas
   @override
   Future<List<Task>> getAllTasks() async {
-    return await _localService.getAllTasks();
+    _ensureAuthenticated();
+    
+    final tasks = await _localService.getAllTasks();
+    
+    // Filtrar solo las tareas del usuario actual
+    return tasks.where((task) => task.userId == _currentUserId).toList();
   }
 
   /// Obtener tarea por ID
   @override
   Future<Task?> getTaskById(String id) async {
-    return await _localService.getTaskById(id);
+    _ensureAuthenticated();
+    
+    final task = await _localService.getTaskById(id);
+    
+    // Verificar que la tarea pertenece al usuario actual
+    if (task != null && task.userId != _currentUserId) {
+      return null; // No tiene permiso para ver esta tarea
+    }
+    
+    return task;
   }
 
   /// Obtener tareas por estado
   @override
   Future<List<Task>> getTasksByStatus(TaskStatus status) async {
-    return await _localService.getTasksByStatus(status);
+    _ensureAuthenticated();
+    
+    final tasks = await _localService.getTasksByStatus(status);
+    
+    // Filtrar solo las tareas del usuario actual
+    return tasks.where((task) => task.userId == _currentUserId).toList();
   }
 
   /// Obtener tareas por prioridad
   @override
   Future<List<Task>> getTasksByPriority(TaskPriority priority) async {
-    return await _localService.getTasksByPriority(priority);
+    _ensureAuthenticated();
+    
+    final tasks = await _localService.getTasksByPriority(priority);
+    
+    // Filtrar solo las tareas del usuario actual
+    return tasks.where((task) => task.userId == _currentUserId).toList();
   }
 
   /// Obtener tareas por categoría
   @override
   Future<List<Task>> getTasksByCategory(String category) async {
-    return await _localService.getTasksByCategory(category);
+    _ensureAuthenticated();
+    
+    final tasks = await _localService.getTasksByCategory(category);
+    
+    // Filtrar solo las tareas del usuario actual
+    return tasks.where((task) => task.userId == _currentUserId).toList();
   }
 
   /// Obtener tareas vencidas
   @override
   Future<List<Task>> getOverdueTasks() async {
-    return await _localService.getOverdueTasks();
+    _ensureAuthenticated();
+    
+    final tasks = await _localService.getOverdueTasks();
+    
+    // Filtrar solo las tareas del usuario actual
+    return tasks.where((task) => task.userId == _currentUserId).toList();
   }
 
   /// Obtener tareas de hoy
   @override
   Future<List<Task>> getTodayTasks() async {
-    return await _localService.getTodayTasks();
+    _ensureAuthenticated();
+    
+    final tasks = await _localService.getTodayTasks();
+    
+    // Filtrar solo las tareas del usuario actual
+    return tasks.where((task) => task.userId == _currentUserId).toList();
   }
 
   /// Buscar tareas
   @override
   Future<List<Task>> searchTasks(String query) async {
-    return await _localService.searchTasks(query);
+    _ensureAuthenticated();
+    
+    final tasks = await _localService.searchTasks(query);
+    
+    // Filtrar solo las tareas del usuario actual
+    return tasks.where((task) => task.userId == _currentUserId).toList();
   }
 
   /// Marcar tarea como completada
@@ -985,12 +1090,26 @@ class DatabaseServiceHybridV2 implements DatabaseInterface {
   
   @override
   Future<List<PomodoroSession>> getAllPomodoroSessions() async {
-    return await _localService.getAllPomodoroSessions();
+    _ensureAuthenticated();
+    
+    final sessions = await _localService.getAllPomodoroSessions();
+    
+    // Filtrar solo las sesiones del usuario actual
+    return sessions.where((session) => session.userId == _currentUserId).toList();
   }
   
   @override
   Future<PomodoroSession?> getPomodoroSessionById(String id) async {
-    return await _localService.getPomodoroSessionById(id);
+    _ensureAuthenticated();
+    
+    final session = await _localService.getPomodoroSessionById(id);
+    
+    // Verificar que la sesión pertenece al usuario actual
+    if (session != null && session.userId != _currentUserId) {
+      return null; // No tiene permiso para ver esta sesión
+    }
+    
+    return session;
   }
   
   @override
@@ -998,17 +1117,32 @@ class DatabaseServiceHybridV2 implements DatabaseInterface {
     DateTime startDate,
     DateTime endDate,
   ) async {
-    return await _localService.getPomodoroSessionsByDateRange(startDate, endDate);
+    _ensureAuthenticated();
+    
+    final sessions = await _localService.getPomodoroSessionsByDateRange(startDate, endDate);
+    
+    // Filtrar solo las sesiones del usuario actual
+    return sessions.where((session) => session.userId == _currentUserId).toList();
   }
   
   @override
   Future<List<PomodoroSession>> getTodayPomodoroSessions() async {
-    return await _localService.getTodayPomodoroSessions();
+    _ensureAuthenticated();
+    
+    final sessions = await _localService.getTodayPomodoroSessions();
+    
+    // Filtrar solo las sesiones del usuario actual
+    return sessions.where((session) => session.userId == _currentUserId).toList();
   }
   
   @override
   Future<List<PomodoroSession>> getPomodoroSessionsByTask(String taskId) async {
-    return await _localService.getPomodoroSessionsByTask(taskId);
+    _ensureAuthenticated();
+    
+    final sessions = await _localService.getPomodoroSessionsByTask(taskId);
+    
+    // Filtrar solo las sesiones del usuario actual
+    return sessions.where((session) => session.userId == _currentUserId).toList();
   }
   
   @override
@@ -1099,12 +1233,26 @@ class DatabaseServiceHybridV2 implements DatabaseInterface {
   
   @override
   Future<List<TaskTemplate>> getAllTaskTemplates() async {
-    return await _localService.getAllTaskTemplates();
+    _ensureAuthenticated();
+    
+    final templates = await _localService.getAllTaskTemplates();
+    
+    // Filtrar solo los templates del usuario actual
+    return templates.where((template) => template.userId == _currentUserId).toList();
   }
   
   @override
   Future<TaskTemplate?> getTaskTemplateById(String id) async {
-    return await _localService.getTaskTemplateById(id);
+    _ensureAuthenticated();
+    
+    final template = await _localService.getTaskTemplateById(id);
+    
+    // Verificar que el template pertenece al usuario actual
+    if (template != null && template.userId != _currentUserId) {
+      return null; // No tiene permiso para ver este template
+    }
+    
+    return template;
   }
   
   /// Obtener estado de sincronización

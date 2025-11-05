@@ -8,6 +8,7 @@ class Event {
   final DateTime endTime;
   final String category;
   final bool isCompleted;
+  final String userId; // ID del usuario propietario del evento
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -20,9 +21,11 @@ class Event {
     required this.endTime,
     required this.category,
     this.isCompleted = false,
+    required this.userId,
     required this.createdAt,
     required this.updatedAt,
   }) : assert(title.isNotEmpty, 'El título no puede estar vacío'),
+       assert(userId.isNotEmpty, 'El userId no puede estar vacío'),
        assert(startTime.isBefore(endTime), 'La fecha de inicio debe ser anterior a la de fin');
 
   /// Constructor para crear un nuevo evento con timestamps automáticos
@@ -32,6 +35,7 @@ class Event {
     required DateTime startTime,
     required DateTime endTime,
     required String category,
+    required String userId,
   }) : this(
           id: DateTime.now().millisecondsSinceEpoch.toString(),
           title: title,
@@ -39,6 +43,7 @@ class Event {
           startTime: startTime,
           endTime: endTime,
           category: category,
+          userId: userId,
           isCompleted: false,
           createdAt: DateTime.now(),
           updatedAt: DateTime.now(),
@@ -54,6 +59,7 @@ class Event {
       'endTime': endTime.millisecondsSinceEpoch,
       'category': category,
       'isCompleted': isCompleted ? 1 : 0,
+      'userId': userId,
       'createdAt': createdAt.millisecondsSinceEpoch,
       'updatedAt': updatedAt.millisecondsSinceEpoch,
     };
@@ -69,6 +75,7 @@ class Event {
       endTime: DateTime.fromMillisecondsSinceEpoch(map['endTime'] ?? 0),
       category: map['category'] ?? '',
       isCompleted: (map['isCompleted'] ?? 0) == 1,
+      userId: map['userId'] ?? map['user_id'] ?? '', // Soporta ambos nombres
       createdAt: DateTime.fromMillisecondsSinceEpoch(map['createdAt'] ?? 0),
       updatedAt: DateTime.fromMillisecondsSinceEpoch(map['updatedAt'] ?? 0),
     );
@@ -88,6 +95,7 @@ class Event {
     DateTime? endTime,
     String? category,
     bool? isCompleted,
+    String? userId,
   }) {
     return Event(
       id: id,
@@ -97,6 +105,7 @@ class Event {
       endTime: endTime ?? this.endTime,
       category: category ?? this.category,
       isCompleted: isCompleted ?? this.isCompleted,
+      userId: userId ?? this.userId,
       createdAt: createdAt,
       updatedAt: DateTime.now(), // Actualiza automáticamente el timestamp
     );

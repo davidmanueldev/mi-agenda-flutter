@@ -141,12 +141,21 @@ class EventController extends ChangeNotifier {
         return false;
       }
 
+      // Obtener el userId del servicio de base de datos
+      final userId = _databaseService.currentUserId;
+      
+      if (userId == null || userId.isEmpty) {
+        _setError('Debes estar autenticado para crear eventos');
+        return false;
+      }
+      
       final event = Event.create(
         title: title,
         description: description,
         startTime: startTime,
         endTime: endTime,
         category: categoryId,
+        userId: userId,
       );
 
       await _databaseService.insertEvent(event);

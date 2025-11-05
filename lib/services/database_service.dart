@@ -19,6 +19,9 @@ class DatabaseService implements DatabaseInterface {
   }
 
   DatabaseService._internal();
+  
+  @override
+  String? get currentUserId => null; // DatabaseService local no tiene concepto de usuario autenticado
 
   /// Getter para obtener la instancia de la base de datos
   Future<Database> get database async {
@@ -33,7 +36,7 @@ class DatabaseService implements DatabaseInterface {
 
     return await openDatabase(
       path,
-      version: 7, // Versión 7: Tabla de users para autenticación
+      version: 9, // Versión 9: Campo userId en categories para multi-usuario
       onCreate: _createTables,
       onUpgrade: _upgradeDatabase,
     );
@@ -57,6 +60,7 @@ class DatabaseService implements DatabaseInterface {
     await db.execute('''
       CREATE TABLE events (
         id TEXT PRIMARY KEY,
+        userId TEXT NOT NULL,
         title TEXT NOT NULL,
         description TEXT NOT NULL,
         startTime INTEGER NOT NULL,
@@ -94,6 +98,7 @@ class DatabaseService implements DatabaseInterface {
     ''');
 
     // Índices para optimizar consultas de eventos
+    await db.execute('CREATE INDEX idx_events_userId ON events(userId)');
     await db.execute('CREATE INDEX idx_events_startTime ON events(startTime)');
     await db.execute('CREATE INDEX idx_events_category ON events(category)');
     await db.execute('CREATE INDEX idx_events_date ON events(startTime, endTime)');
@@ -353,6 +358,41 @@ class DatabaseService implements DatabaseInterface {
       ''');
       
       await db.execute('CREATE INDEX idx_users_email ON users(email)');
+    }
+    
+    // Migración de versión 7 a 8: Agregar campo userId a eventos
+    if (oldVersion < 8) {
+      // Verificar si la columna userId ya existe en events
+      var columns = await db.rawQuery('PRAGMA table_info(events)');
+      var columnNames = columns.map((col) => col['name'] as String).toSet();
+      
+      if (!columnNames.contains('userId')) {
+        // Agregar la columna userId con valor por defecto vacío
+        // Nota: Los eventos existentes tendrán userId vacío y deberán ser re-asignados o eliminados
+        await db.execute('ALTER TABLE events ADD COLUMN userId TEXT NOT NULL DEFAULT ""');
+        
+        // Crear índice para userId
+        await db.execute('CREATE INDEX idx_events_userId ON events(userId)');
+        
+        print('⚠️  ADVERTENCIA: Eventos existentes sin userId asignado. Considera eliminarlos o asignarles un usuario.');
+      }
+    }
+    
+    // Migración de versión 8 a 9: Agregar campo userId a categories
+    if (oldVersion < 9) {
+      // Verificar si la columna userId ya existe en categories
+      var columns = await db.rawQuery('PRAGMA table_info(categories)');
+      var columnNames = columns.map((col) => col['name'] as String).toSet();
+      
+      if (!columnNames.contains('userId')) {
+        // Agregar la columna userId (nullable para categorías del sistema)
+        await db.execute('ALTER TABLE categories ADD COLUMN userId TEXT');
+        
+        // Crear índice para userId
+        await db.execute('CREATE INDEX idx_categories_userId ON categories(userId)');
+        
+        print('⚠️  ADVERTENCIA: Categorías existentes sin userId asignado (categorías del sistema).');
+      }
     }
   }
 

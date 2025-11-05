@@ -550,12 +550,26 @@ class _CategoryDialogState extends State<_CategoryDialog> {
 
     final controller = context.read<CategoryController>();
     
+    // Obtener userId del servicio de base de datos
+    final userId = controller.database.currentUserId;
+    
+    if (userId == null || userId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Debes estar autenticado para crear categorías'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+    
     final category = Category(
       id: _isEditing ? widget.category!.id : DateTime.now().millisecondsSinceEpoch.toString(),
       name: _nameController.text.trim(),
       description: _descriptionController.text.trim(),
       color: _selectedColor,
       icon: _selectedIcon,
+      userId: _isEditing ? widget.category!.userId : userId, // Mantener userId en edición
       createdAt: _isEditing ? widget.category!.createdAt : DateTime.now(),
     );
 

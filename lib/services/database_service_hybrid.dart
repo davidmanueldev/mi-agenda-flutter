@@ -12,6 +12,9 @@ class DatabaseServiceHybrid implements DatabaseInterface {
   
   bool _useFirebase = true;
   
+  @override
+  String? get currentUserId => _firebaseService.currentUserId;
+  
   /// Alternar entre Firebase y SQLite
   void setUseFirebase(bool useFirebase) {
     _useFirebase = useFirebase;

@@ -7,6 +7,8 @@ import '../models/task_template.dart';
 /// Interfaz común para servicios de base de datos
 /// Permite intercambiar entre SQLite, Firebase, o implementaciones híbridas
 abstract class DatabaseInterface {
+  /// Obtener el ID del usuario actual autenticado
+  String? get currentUserId;
   
   // ==================== OPERACIONES DE EVENTOS ====================
   

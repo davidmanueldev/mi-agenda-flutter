@@ -16,6 +16,7 @@ class CategoryController with ChangeNotifier {
   List<model.Category> get categories => List.unmodifiable(_categories);
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
+  DatabaseInterface get database => _database; // Exponer para acceder a currentUserId
   
   /// Constructor con inyección de dependencias
   CategoryController({

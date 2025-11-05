@@ -8,6 +8,7 @@ class Category {
   final String description;
   final Color color;
   final IconData icon;
+  final String? userId; // Null para categorías predeterminadas del sistema
   final DateTime createdAt;
 
   /// Constructor principal con validaciones
@@ -17,6 +18,7 @@ class Category {
     required this.description,
     required this.color,
     required this.icon,
+    this.userId, // Opcional para categorías del sistema
     required this.createdAt,
   }) : assert(name.isNotEmpty, 'El nombre de la categoría no puede estar vacío');
 
@@ -26,12 +28,14 @@ class Category {
     required String description,
     required Color color,
     required IconData icon,
+    String? userId, // Opcional: null para categorías del sistema
   }) : this(
           id: DateTime.now().millisecondsSinceEpoch.toString(),
           name: name,
           description: description,
           color: color,
           icon: icon,
+          userId: userId,
           createdAt: DateTime.now(),
         );
 
@@ -43,6 +47,7 @@ class Category {
       'description': description,
       'color': color.value,
       'icon': icon.codePoint,
+      'userId': userId, // Null para categorías del sistema
       'createdAt': createdAt.millisecondsSinceEpoch,
     };
   }
@@ -55,6 +60,7 @@ class Category {
       description: map['description'] ?? '',
       color: Color(map['color'] ?? Colors.blue.value),
       icon: IconData(map['icon'] ?? Icons.event.codePoint, fontFamily: 'MaterialIcons'),
+      userId: map['userId'] ?? map['user_id'], // Soporta ambos nombres
       createdAt: DateTime.fromMillisecondsSinceEpoch(map['createdAt'] ?? 0),
     );
   }

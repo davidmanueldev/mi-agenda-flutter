@@ -30,6 +30,9 @@ class FirebaseService {
   // Instancia de Firebase Auth
   final FirebaseAuth _auth = FirebaseAuth.instance;
   
+  /// Obtener el ID del usuario actual de Firebase Auth
+  String? get currentUserId => _auth.currentUser?.uid;
+  
   /// Inicializar Firebase
   static Future<void> initialize() async {
     try {
@@ -259,6 +262,77 @@ class FirebaseService {
     }
   }
 
+  /// Cambiar contraseña del usuario actual
+  Future<void> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    try {
+      final firebaseUser = _auth.currentUser;
+      if (firebaseUser == null || firebaseUser.email == null) {
+        throw FirebaseServiceException('No hay usuario autenticado');
+      }
+
+      // Re-autenticar usuario con contraseña actual
+      final credential = EmailAuthProvider.credential(
+        email: firebaseUser.email!,
+        password: currentPassword,
+      );
+
+      await firebaseUser.reauthenticateWithCredential(credential);
+
+      // Cambiar contraseña
+      await firebaseUser.updatePassword(newPassword);
+
+      print('✅ Contraseña actualizada correctamente');
+    } on FirebaseAuthException catch (e) {
+      print('❌ Error al cambiar contraseña: ${e.code} - ${e.message}');
+      if (e.code == 'wrong-password') {
+        throw FirebaseServiceException('La contraseña actual es incorrecta');
+      } else if (e.code == 'weak-password') {
+        throw FirebaseServiceException('La nueva contraseña es muy débil');
+      }
+      throw FirebaseServiceException(_getAuthErrorMessage(e.code));
+    } catch (e) {
+      print('❌ Error al cambiar contraseña: $e');
+      throw FirebaseServiceException('Error al cambiar contraseña: $e');
+    }
+  }
+
+  /// Eliminar cuenta de usuario
+  Future<void> deleteUserAccount() async {
+    try {
+      final firebaseUser = _auth.currentUser;
+      if (firebaseUser == null) {
+        throw FirebaseServiceException('No hay usuario autenticado');
+      }
+
+      final userId = firebaseUser.uid;
+
+      // Eliminar documento de usuario en Firestore
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userId)
+          .delete();
+
+      // Eliminar cuenta de Firebase Auth
+      await firebaseUser.delete();
+
+      print('✅ Cuenta eliminada correctamente');
+    } on FirebaseAuthException catch (e) {
+      print('❌ Error al eliminar cuenta: ${e.code} - ${e.message}');
+      if (e.code == 'requires-recent-login') {
+        throw FirebaseServiceException(
+          'Por seguridad, debes volver a iniciar sesión antes de eliminar tu cuenta',
+        );
+      }
+      throw FirebaseServiceException(_getAuthErrorMessage(e.code));
+    } catch (e) {
+      print('❌ Error al eliminar cuenta: $e');
+      throw FirebaseServiceException('Error al eliminar cuenta: $e');
+    }
+  }
+
   /// Convertir Firebase User a UserProfile
   Future<UserProfile?> _getCurrentUserFromFirebaseUser(User firebaseUser) async {
     try {
@@ -324,9 +398,6 @@ class FirebaseService {
 
   /// Obtener email del usuario actual
   String? get currentUserEmail => _auth.currentUser?.email;
-
-  /// Obtener ID del usuario actual (para filtrar datos por usuario)
-  String? get currentUserId => _auth.currentUser?.uid;
 
   // ==================== OPERACIONES DE EVENTOS ====================
 

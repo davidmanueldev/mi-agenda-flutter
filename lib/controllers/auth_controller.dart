@@ -145,8 +145,16 @@ class AuthController with ChangeNotifier {
     }
   }
 
-  /// Actualizar perfil de usuario
+  /// Actualizar perfil de usuario (alias para mantener compatibilidad)
   Future<bool> updateProfile({
+    String? displayName,
+    String? photoURL,
+  }) async {
+    return updateUserProfile(displayName: displayName, photoURL: photoURL);
+  }
+
+  /// Actualizar perfil de usuario
+  Future<bool> updateUserProfile({
     String? displayName,
     String? photoURL,
   }) async {
@@ -170,6 +178,55 @@ class AuthController with ChangeNotifier {
       return false;
     } catch (e) {
       _setError('Error al actualizar perfil: $e');
+      return false;
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  /// Cambiar contraseña
+  Future<bool> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    if (_currentUser == null) return false;
+
+    _setLoading(true);
+    _clearError();
+
+    try {
+      await _firebaseService.changePassword(
+        currentPassword: currentPassword,
+        newPassword: newPassword,
+      );
+      return true;
+    } catch (e) {
+      _setError('Error al cambiar contraseña: $e');
+      return false;
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  /// Eliminar cuenta de usuario
+  Future<bool> deleteAccount() async {
+    if (_currentUser == null) return false;
+
+    _setLoading(true);
+    _clearError();
+
+    try {
+      // Eliminar de Firebase
+      await _firebaseService.deleteUserAccount();
+      
+      // Eliminar de SQLite
+      await _localService.deleteUser(_currentUser!.id);
+      
+      _currentUser = null;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _setError('Error al eliminar cuenta: $e');
       return false;
     } finally {
       _setLoading(false);
