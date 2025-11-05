@@ -508,15 +508,28 @@ class FirebaseService {
 
   /// Stream de eventos en tiempo real
   Stream<List<Event>> getEventsStream() {
+    print('🔍 getEventsStream: currentUserId = $currentUserId');
+    
+    if (currentUserId == null) {
+      print('⚠️ getEventsStream: No hay usuario autenticado, retornando stream vacío');
+      return Stream.value([]);
+    }
+    
     return _eventsCollection
         .where('userId', isEqualTo: currentUserId)
-        .orderBy('startTime')
         .snapshots()
         .map((snapshot) {
-      return snapshot.docs.map((doc) {
+      print('📦 getEventsStream: Recibidos ${snapshot.docs.length} eventos de Firebase');
+      
+      final events = snapshot.docs.map((doc) {
         final data = doc.data() as Map<String, dynamic>;
         return Event.fromMap(data);
       }).toList();
+      
+      // Ordenar por startTime localmente (evitar índice compuesto)
+      events.sort((a, b) => a.startTime.compareTo(b.startTime));
+      
+      return events;
     });
   }
 
@@ -524,15 +537,30 @@ class FirebaseService {
   
   /// Stream de categorías en tiempo real
   Stream<List<model.Category>> getCategoriesStream() {
+    print('🔍 getCategoriesStream: currentUserId = $currentUserId');
+    
+    if (currentUserId == null) {
+      print('⚠️ getCategoriesStream: No hay usuario autenticado, retornando stream vacío');
+      return Stream.value([]);
+    }
+    
     return _categoriesCollection
         .where('userId', isEqualTo: currentUserId)
-        .orderBy('name')
         .snapshots()
         .map((snapshot) {
-      return snapshot.docs.map((doc) {
+      print('📦 getCategoriesStream: Recibidas ${snapshot.docs.length} categorías de Firebase');
+      
+      final categories = snapshot.docs.map((doc) {
         final data = doc.data() as Map<String, dynamic>;
-        return model.Category.fromMap(data);
+        final category = model.Category.fromMap(data);
+        print('   - ${category.name} (userId: ${category.userId})');
+        return category;
       }).toList();
+      
+      // Ordenar por nombre localmente (evitar índice compuesto en Firebase)
+      categories.sort((a, b) => a.name.compareTo(b.name));
+      
+      return categories;
     });
   }
 
@@ -612,15 +640,28 @@ class FirebaseService {
   
   /// Stream de tareas en tiempo real
   Stream<List<Task>> getTasksStream() {
+    print('🔍 getTasksStream: currentUserId = $currentUserId');
+    
+    if (currentUserId == null) {
+      print('⚠️ getTasksStream: No hay usuario autenticado, retornando stream vacío');
+      return Stream.value([]);
+    }
+    
     return _tasksCollection
         .where('userId', isEqualTo: currentUserId)
-        .orderBy('createdAt', descending: true)
         .snapshots()
         .map((snapshot) {
-      return snapshot.docs.map((doc) {
+      print('📦 getTasksStream: Recibidas ${snapshot.docs.length} tareas de Firebase');
+      
+      final tasks = snapshot.docs.map((doc) {
         final data = doc.data() as Map<String, dynamic>;
         return Task.fromJson(data);
       }).toList();
+      
+      // Ordenar por createdAt localmente (evitar índice compuesto)
+      tasks.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      
+      return tasks;
     });
   }
 
@@ -1064,18 +1105,29 @@ class FirebaseService {
   
   /// Stream de sesiones Pomodoro en tiempo real
   Stream<List<PomodoroSession>> getPomodoroSessionsStream() {
+    print('🔍 getPomodoroSessionsStream: currentUserId = $currentUserId');
+    
     final userId = currentUserId;
     if (userId == null) {
+      print('⚠️ getPomodoroSessionsStream: No hay usuario autenticado, retornando stream vacío');
       return Stream.value([]);
     }
     
     return _pomodoroCollection
         .where('userId', isEqualTo: userId)
-        .orderBy('startTime', descending: true)
         .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => PomodoroSession.fromJson(doc.data() as Map<String, dynamic>))
-            .toList());
+        .map((snapshot) {
+      print('📦 getPomodoroSessionsStream: Recibidas ${snapshot.docs.length} sesiones de Firebase');
+      
+      final sessions = snapshot.docs
+          .map((doc) => PomodoroSession.fromJson(doc.data() as Map<String, dynamic>))
+          .toList();
+      
+      // Ordenar por startTime localmente (evitar índice compuesto)
+      sessions.sort((a, b) => b.startTime.compareTo(a.startTime));
+      
+      return sessions;
+    });
   }
   
   /// Obtener estadísticas de Pomodoro

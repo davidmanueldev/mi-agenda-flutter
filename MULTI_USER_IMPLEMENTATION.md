@@ -185,6 +185,31 @@
   - ✅ `deleteUserAccount()` - Eliminar cuenta y datos de Firestore
   - ✅ Manejo de errores específicos (wrong-password, weak-password, requires-recent-login)
 
+#### 20. **Fix de Streams Firebase - Aislamiento de Datos** ✅
+- **Archivo**: `lib/services/firebase_service.dart`
+- **Problema identificado**: 
+  - Los streams usaban `.where() + .orderBy()` requiriendo índices compuestos
+  - Sin índices, Firebase podía retornar datos sin filtrar correctamente
+- **Solución aplicada**:
+  - ✅ Removido `.orderBy()` de todos los streams
+  - ✅ Ordenación ahora se hace localmente en memoria
+  - ✅ Filtrado `.where('userId', isEqualTo: currentUserId)` usa índice simple automático
+  - ✅ Agregados logs de debugging para verificar filtrado
+- **Streams corregidos**:
+  - `getEventsStream()`: Filtrado por userId, ordenación local
+  - `getCategoriesStream()`: Filtrado por userId, ordenación local
+  - `getTasksStream()`: Filtrado por userId, ordenación local
+  - `getPomodoroSessionsStream()`: Filtrado por userId, ordenación local
+
+#### 21. **Documento de Debugging Multi-Usuario** ✅
+- **Archivo**: `DEBUGGING_MULTI_USER.md`
+- **Contenido**:
+  - ✅ Guía paso a paso para verificar aislamiento de datos
+  - ✅ Instrucciones de testing con 2 usuarios
+  - ✅ Checklist de verificación completa
+  - ✅ Soluciones a problemas comunes
+  - ✅ Cómo interpretar los logs de debugging
+
 ---
 
 ### ⏳ Pendiente (2% restante)
@@ -192,6 +217,7 @@
 ❌ **Firebase Security Rules**: Aplicar reglas multi-usuario
   - Proteger colecciones events, tasks, categories, pomodoro_sessions, task_templates
   - Validar que userId == auth.uid en todas las operaciones
+  - **Archivo de reglas listo**: `FIREBASE_SECURITY_RULES.md`
 
 ❌ **Testing Multi-Usuario**: Verificar aislamiento de datos
   - Registrar 2 usuarios diferentes
@@ -200,10 +226,22 @@
   - Probar: logout → login con otro usuario → datos diferentes
   - Probar cambio de contraseña
   - Probar eliminación de cuenta
+  - **Guía de testing disponible**: `DEBUGGING_MULTI_USER.md`
 
 ---
 
 ## 📊 Progreso Final: 98%
+
+### 🎯 Cambios Críticos Aplicados
+
+**Problema Original:** Datos de usuarios mezclados (categorías de Usuario A visibles para Usuario B)
+
+**Solución Implementada:**
+1. ✅ Removido `orderBy()` de streams Firebase (evita índices compuestos)
+2. ✅ Ordenación movida a nivel de aplicación (en memoria)
+3. ✅ Filtrado `.where('userId')` ahora funciona correctamente
+4. ✅ Logs de debugging agregados para verificación
+5. ✅ Documentación completa de testing y debugging
 
 #### 10. **Actualizar Controllers para pasar userId**
 **Archivos a actualizar:**

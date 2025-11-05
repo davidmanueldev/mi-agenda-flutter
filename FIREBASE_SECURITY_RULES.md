@@ -234,6 +234,18 @@ Después de aplicar las reglas, realiza las siguientes pruebas:
 
 ## 📝 Notas Importantes
 
+### ⚠️ IMPORTANTE: Índices Compuestos NO Requeridos
+**La app ordena los datos localmente para evitar índices compuestos en Firebase.**
+
+Si Firebase muestra un error tipo:
+```
+"The query requires an index. You can create it here: https://..."
+```
+
+**NO CREAR EL ÍNDICE**. Los streams ya están configurados para ordenar localmente.
+
+Los índices simples de `userId` se crean automáticamente.
+
 ### Sobre `task_templates`
 - Los templates usan el campo `user_id` (con guion bajo) en lugar de `userId`
 - Las reglas reflejan esta nomenclatura
