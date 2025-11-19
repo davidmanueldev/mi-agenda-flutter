@@ -210,6 +210,7 @@ class _AddEditTaskScreenState extends State<AddEditTaskScreen> {
                             border: OutlineInputBorder(),
                             prefixIcon: Icon(Icons.folder),
                           ),
+                          menuMaxHeight: 300, // Permitir scroll cuando hay más de 3 categorías
                           items: categories.map((category) {
                             return DropdownMenuItem(
                               value: category.id,

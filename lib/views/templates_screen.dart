@@ -562,6 +562,7 @@ class _TemplateDialogState extends State<_TemplateDialog> {
                       labelText: 'Categoría',
                       prefixIcon: Icon(Icons.category),
                     ),
+                    menuMaxHeight: 300, // Permitir scroll cuando hay más de 3 categorías
                     items: categories.map((category) {
                       return DropdownMenuItem(
                         value: category.id,
@@ -741,9 +742,23 @@ class _TemplateDialogState extends State<_TemplateDialog> {
     final controller = Provider.of<TemplateController>(context, listen: false);
     final isEdit = widget.template != null;
 
+    // Obtener userId real del servicio de base de datos usando TemplateController
+    final templateController = Provider.of<TemplateController>(context, listen: false);
+    final currentUserId = templateController.currentUserId;
+    
+    if (currentUserId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Error: No hay usuario autenticado'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
     final template = TaskTemplate(
       id: isEdit ? widget.template!.id : SecurityUtils.generateSecureId(),
-      userId: isEdit ? widget.template!.userId : 'user_temp', // Se actualizará con userId real
+      userId: isEdit ? widget.template!.userId : currentUserId, // userId real del usuario autenticado
       name: SecurityUtils.sanitizeInput(_nameController.text.trim()),
       title: SecurityUtils.sanitizeInput(_titleController.text.trim()),
       description: SecurityUtils.sanitizeInput(_descriptionController.text.trim()),

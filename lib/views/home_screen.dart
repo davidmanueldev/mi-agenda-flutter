@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:table_calendar/table_calendar.dart';
 import '../controllers/event_controller.dart';
@@ -39,71 +40,83 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: const CustomAppBar(title: 'Mi Agenda'),
-      drawer: const AppDrawer(currentRoute: 'home'),
-      body: Consumer<EventController>(
-        builder: (context, controller, child) {
-          // Mostrar indicador de carga
-          if (controller.isLoading) {
-            return const Center(
-              child: CircularProgressIndicator(),
-            );
-          }
+    return PopScope(
+      canPop: false, // Prevenir navegación hacia atrás por defecto
+      onPopInvokedWithResult: (bool didPop, dynamic result) async {
+        if (didPop) return;
+        
+        // Mostrar diálogo de confirmación antes de salir
+        final shouldExit = await _showExitConfirmationDialog(context);
+        if (shouldExit == true && context.mounted) {
+          SystemNavigator.pop(); // Salir de la aplicación
+        }
+      },
+      child: Scaffold(
+        appBar: const CustomAppBar(title: 'Mi Agenda'),
+        drawer: const AppDrawer(currentRoute: 'home'),
+        body: Consumer<EventController>(
+          builder: (context, controller, child) {
+            // Mostrar indicador de carga
+            if (controller.isLoading) {
+              return const Center(
+                child: CircularProgressIndicator(),
+              );
+            }
 
-          // Mostrar mensaje de error si existe
-          if (controller.errorMessage != null) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.error_outline,
-                    size: 64,
-                    color: Theme.of(context).colorScheme.error,
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Error al cargar eventos',
-                    style: Theme.of(context).textTheme.headlineSmall,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    controller.errorMessage!,
-                    style: Theme.of(context).textTheme.bodyMedium,
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: () => controller.loadEvents(),
-                    child: const Text('Reintentar'),
-                  ),
-                ],
-              ),
-            );
-          }
+            // Mostrar mensaje de error si existe
+            if (controller.errorMessage != null) {
+              return Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.error_outline,
+                      size: 64,
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Error al cargar eventos',
+                      style: Theme.of(context).textTheme.headlineSmall,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      controller.errorMessage!,
+                      style: Theme.of(context).textTheme.bodyMedium,
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 16),
+                    ElevatedButton(
+                      onPressed: () => controller.loadEvents(),
+                      child: const Text('Reintentar'),
+                    ),
+                  ],
+                ),
+              );
+            }
 
-          return Column(
-            children: [
-              // Banner de estado de conectividad
-              _buildConnectivityBanner(),
-              
-              // Calendario widget
-              _buildCalendar(controller),
-              
-              // Lista de eventos del día seleccionado
-              Expanded(
-                child: _buildEventsList(controller),
-              ),
-            ],
-          );
-        },
-      ),
-      floatingActionButton: FloatingActionButton(
-        heroTag: 'home_fab', // Tag único para evitar conflictos de Hero
-        onPressed: () => _navigateToAddEvent(),
-        tooltip: 'Agregar evento',
-        child: const Icon(Icons.add),
+            return Column(
+              children: [
+                // Banner de estado de conectividad
+                _buildConnectivityBanner(),
+                
+                // Calendario widget
+                _buildCalendar(controller),
+                
+                // Lista de eventos del día seleccionado
+                Expanded(
+                  child: _buildEventsList(controller),
+                ),
+              ],
+            );
+          },
+        ),
+        floatingActionButton: FloatingActionButton(
+          heroTag: 'home_fab', // Tag único para evitar conflictos de Hero
+          onPressed: () => _navigateToAddEvent(),
+          tooltip: 'Agregar evento',
+          child: const Icon(Icons.add),
+        ),
       ),
     );
   }
@@ -507,6 +520,32 @@ class _HomeScreenState extends State<HomeScreen> {
               color: Colors.white,
               fontSize: 12,
               fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Mostrar diálogo de confirmación para salir de la aplicación
+  Future<bool?> _showExitConfirmationDialog(BuildContext context) {
+    return showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Salir de la aplicación'),
+        content: const Text('¿Estás seguro de que quieres salir?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(
+              'Salir',
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.error,
+              ),
             ),
           ),
         ],

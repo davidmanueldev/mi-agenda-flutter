@@ -52,6 +52,7 @@ class DatabaseService implements DatabaseInterface {
         description TEXT NOT NULL,
         color INTEGER NOT NULL,
         icon INTEGER NOT NULL,
+        userId TEXT,
         createdAt INTEGER NOT NULL
       )
     ''');
@@ -102,6 +103,9 @@ class DatabaseService implements DatabaseInterface {
     await db.execute('CREATE INDEX idx_events_startTime ON events(startTime)');
     await db.execute('CREATE INDEX idx_events_category ON events(category)');
     await db.execute('CREATE INDEX idx_events_date ON events(startTime, endTime)');
+    
+    // Índice para optimizar consultas de categorías por userId
+    await db.execute('CREATE INDEX idx_categories_userId ON categories(userId)');
     
     // Índices para optimizar consultas de tareas
     await db.execute('CREATE INDEX idx_tasks_dueDate ON tasks(dueDate)');

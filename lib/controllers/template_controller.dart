@@ -16,6 +16,7 @@ class TemplateController with ChangeNotifier {
   List<TaskTemplate> get templates => List.unmodifiable(_templates);
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
+  String? get currentUserId => _database.currentUserId; // Exponer userId del usuario autenticado
   
   /// Constructor con inyección de dependencias
   TemplateController({

@@ -33,9 +33,10 @@ class EventController extends ChangeNotifier {
     if (_databaseService is DatabaseServiceHybridV2) {
       final hybridService = _databaseService;
       hybridService.onDataChanged = () {
-        // Recargar eventos cuando Firebase notifica cambios
-        print('🔄 Datos cambiados desde Firebase, recargando...');
+        // Recargar eventos y categorías cuando Firebase notifica cambios
+        print('🔄 Datos cambiados desde Firebase, recargando eventos y categorías...');
         loadEvents();
+        loadCategories();
       };
     }
   }

@@ -362,7 +362,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             _buildInfoRow(
               icon: Icons.verified_user,
               label: 'ID de Usuario',
-              value: user.id.substring(0, 8) + '...',
+              value: '${user.id.substring(0, 8)}...',
             ),
           ],
         ),
